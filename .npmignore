@@ -55,6 +55,13 @@ azure-pipelines.yml
 *.tmp
 .cache/
 temp/
+tmpclaude-*
+
+# Sensitive files
+.claude.json
+.claude/
+.npmrc
+PROJECT_CONTEXT.md
 
 # Keep these
 !dist/
