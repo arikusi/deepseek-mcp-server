@@ -21,11 +21,17 @@ A Model Context Protocol (MCP) server that integrates DeepSeek AI models with MC
 ### For Claude Code
 
 ```bash
-# Install and configure in one step
-claude mcp add deepseek npx @arikusi/deepseek-mcp-server
+# Install and configure with API key (available in all projects)
+claude mcp add -s user deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=your-key-here
 
-# Enter your DeepSeek API key when prompted
+# Or install for current project only
+claude mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=your-key-here
 ```
+
+**Scope options:**
+- `-s user`: Available in all your projects (recommended)
+- `-s local`: Only in current project (default)
+- `-s project`: Project-specific `.mcp.json` file
 
 ### For Gemini CLI
 
@@ -114,7 +120,9 @@ If your MCP client doesn't support the `add` command, manually add to your confi
 }
 ```
 
-**Note**: Config file location varies by client (e.g., `~/.claude/mcp_settings.json` for Claude Code).
+**Config file locations:**
+- **Claude Code**: `~/.claude.json` (add to `projects["your-project-path"].mcpServers` section)
+- **Other MCP clients**: Check your client's documentation for config file location
 
 ## Available Tools
 
@@ -225,7 +233,30 @@ The server will start and wait for MCP client connections via stdio.
 
 ### "DEEPSEEK_API_KEY environment variable is not set"
 
-Make sure you've set your API key in the MCP settings `env` section or as an environment variable.
+**Option 1: Use the correct installation command**
+```bash
+# Make sure to include -e flag with your API key
+claude mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=your-key-here
+```
+
+**Option 2: Manually edit the config file**
+
+If you already installed without the API key, edit your config file:
+
+1. **For Claude Code**: Open `~/.claude.json` (Windows: `C:\Users\USERNAME\.claude.json`)
+2. Find the `"mcpServers"` section under your project path
+3. Add the `env` field with your API key:
+```json
+"deepseek": {
+  "type": "stdio",
+  "command": "npx",
+  "args": ["@arikusi/deepseek-mcp-server"],
+  "env": {
+    "DEEPSEEK_API_KEY": "your-api-key-here"
+  }
+}
+```
+4. Save and restart Claude Code
 
 ### "Failed to connect to DeepSeek API"
 
