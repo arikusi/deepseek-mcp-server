@@ -34,3 +34,6 @@ coverage/
 *.tmp
 .cache/
 tmpclaude-*
+
+# Project context (local only)
+PROJECT_CONTEXT.md
