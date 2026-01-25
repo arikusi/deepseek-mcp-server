@@ -39,3 +39,4 @@ tmpclaude-*
 PROJECT_CONTEXT.md
 .claude.json
 .claude/
+.npmrc
