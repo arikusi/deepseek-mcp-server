@@ -16,6 +16,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Nothing yet
 
+## [1.0.3] - 2025-02-07
+
+### Added
+- Cost tracking for API requests
+  - Automatic cost calculation based on token usage
+  - USD cost included in response output
+  - Cost data available in `structuredContent.cost_usd`
+- 10 MCP prompt templates for common reasoning tasks
+  - `debug_with_reasoning`: Debug code with step-by-step analysis
+  - `code_review_deep`: Comprehensive code review
+  - `research_synthesis`: Research and synthesize information
+  - `strategic_planning`: Create strategic plans with reasoning
+  - `explain_like_im_five`: Explain complex topics simply
+  - `mathematical_proof`: Prove mathematical statements
+  - `argument_validation`: Analyze arguments for logical fallacies
+  - `creative_ideation`: Generate creative ideas with feasibility analysis
+  - `cost_comparison`: Compare LLM costs
+  - `pair_programming`: Interactive coding assistant
+- Enhanced response format with request information section
+  - Token breakdown (prompt + completion)
+  - Model name
+  - Cost in USD
+
+### Changed
+- Updated DeepSeek Reasoner pricing to current rates ($0.55/$2.19 per 1M tokens)
+
 ## [1.0.0] - 2025-01-13
 
 ### Added
@@ -65,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **1.0.3** (2025-02-07): Cost tracking and prompt templates
 - **1.0.0** (2025-01-13): Initial public release
 - **0.1.0** (Development): Internal development version
 
@@ -74,6 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [GitHub repository](https://github.com/arikusi/deepseek-mcp-server)
 - [Issue tracker](https://github.com/arikusi/deepseek-mcp-server/issues)
 
-[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/arikusi/deepseek-mcp-server/releases/tag/v1.0.3
 [1.0.0]: https://github.com/arikusi/deepseek-mcp-server/releases/tag/v1.0.0
 [0.1.0]: https://github.com/arikusi/deepseek-mcp-server/releases/tag/v0.1.0

@@ -50,6 +50,8 @@ That's it! Your MCP client can now use DeepSeek models! 🎉
 
 - 🤖 **DeepSeek Chat**: Fast and capable general-purpose model
 - 🧠 **DeepSeek Reasoner (R1)**: Advanced reasoning with chain-of-thought explanations
+- 💰 **Cost Tracking**: Automatic cost calculation for every request (USD)
+- 📋 **10 Prompt Templates**: Pre-built templates for debugging, code review, research, and more
 - 🔄 **Streaming Support**: Real-time response generation
 - 🛡️ **Type-Safe**: Full TypeScript implementation
 - 🎯 **MCP Compatible**: Works with any MCP-compatible CLI (Claude Code, Gemini CLI, etc.)
@@ -128,7 +130,7 @@ If your MCP client doesn't support the `add` command, manually add to your confi
 
 ### `deepseek_chat`
 
-Chat with DeepSeek AI models.
+Chat with DeepSeek AI models with automatic cost tracking.
 
 **Parameters:**
 
@@ -139,6 +141,11 @@ Chat with DeepSeek AI models.
 - `temperature` (optional): 0-2, controls randomness (default: 1.0)
 - `max_tokens` (optional): Maximum tokens to generate
 - `stream` (optional): Enable streaming mode (default: false)
+
+**Response includes:**
+- Content with formatting
+- Request information (tokens, model, cost in USD)
+- Structured data with `cost_usd` field
 
 **Example:**
 
@@ -171,6 +178,26 @@ Chat with DeepSeek AI models.
 ```
 
 The reasoner model will show its thinking process in `<thinking>` tags followed by the final answer.
+
+## Available Prompts
+
+Pre-built prompt templates for common tasks:
+
+### Core Reasoning
+- **debug_with_reasoning**: Debug code with step-by-step analysis
+- **code_review_deep**: Comprehensive code review (security, performance, quality)
+- **research_synthesis**: Research topics and create structured reports
+- **strategic_planning**: Create strategic plans with reasoning
+- **explain_like_im_five**: Explain complex topics in simple terms
+
+### Advanced
+- **mathematical_proof**: Prove mathematical statements rigorously
+- **argument_validation**: Analyze arguments for logical fallacies
+- **creative_ideation**: Generate creative ideas with feasibility analysis
+- **cost_comparison**: Compare LLM costs for tasks
+- **pair_programming**: Interactive coding with explanations
+
+Each prompt is optimized for the DeepSeek Reasoner model to provide detailed reasoning.
 
 ## Models
 

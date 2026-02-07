@@ -40,3 +40,7 @@ PROJECT_CONTEXT.md
 .claude.json
 .claude/
 .npmrc
+
+# Improvement planning (local only)
+IMPROVEMENT_ROADMAP.md
+NOTES.md

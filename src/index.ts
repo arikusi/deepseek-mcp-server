@@ -33,6 +33,44 @@ const server = new McpServer({
   version: '1.0.0',
 });
 
+/**
+ * Calculate cost for a request based on token usage
+ */
+function calculateCost(
+  promptTokens: number,
+  completionTokens: number,
+  model: string
+): number {
+  // DeepSeek pricing (per 1M tokens)
+  const pricing = {
+    'deepseek-chat': {
+      prompt: 0.14,      // $0.14 per 1M tokens
+      completion: 0.28,  // $0.28 per 1M tokens
+    },
+    'deepseek-reasoner': {
+      prompt: 0.55,      // $0.55 per 1M tokens (updated pricing)
+      completion: 2.19,  // $2.19 per 1M tokens (updated pricing)
+    },
+  };
+
+  const modelPricing = pricing[model as keyof typeof pricing] || pricing['deepseek-chat'];
+
+  const promptCost = (promptTokens / 1_000_000) * modelPricing.prompt;
+  const completionCost = (completionTokens / 1_000_000) * modelPricing.completion;
+
+  return promptCost + completionCost;
+}
+
+/**
+ * Format cost as readable string
+ */
+function formatCost(cost: number): string {
+  if (cost < 0.01) {
+    return `$${cost.toFixed(4)}`;
+  }
+  return `$${cost.toFixed(2)}`;
+}
+
 // Define Zod schemas for input validation
 const MessageSchema = z.object({
   role: z.enum(['system', 'user', 'assistant']),
@@ -131,18 +169,30 @@ server.registerTool(
 
       responseText += response.content;
 
-      // Add usage stats
-      responseText += `\n\n---\n**Model:** ${response.model}\n`;
-      responseText += `**Tokens:** ${response.usage.prompt_tokens} prompt + ${response.usage.completion_tokens} completion = ${response.usage.total_tokens} total`;
+      // Calculate cost
+      const cost = calculateCost(
+        response.usage.prompt_tokens,
+        response.usage.completion_tokens,
+        response.model
+      );
+
+      // Add usage stats with cost information
+      responseText += `\n\n---\n📊 **Request Information:**\n`;
+      responseText += `- **Tokens:** ${response.usage.total_tokens} (${response.usage.prompt_tokens} prompt + ${response.usage.completion_tokens} completion)\n`;
+      responseText += `- **Model:** ${response.model}\n`;
+      responseText += `- **Cost:** ${formatCost(cost)}`;
 
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: responseText,
           },
         ],
-        structuredContent: response as unknown as Record<string, unknown>,
+        structuredContent: {
+          ...response,
+          cost_usd: parseFloat(cost.toFixed(6)),
+        } as unknown as Record<string, unknown>,
       };
     } catch (error: any) {
       console.error('[DeepSeek MCP] Error:', error);
@@ -151,7 +201,7 @@ server.registerTool(
       return {
         content: [
           {
-            type: 'text',
+            type: 'text' as const,
             text: `Error: ${errorMessage}`,
           },
         ],
@@ -159,6 +209,388 @@ server.registerTool(
       };
     }
   }
+);
+
+/**
+ * Register MCP Prompts
+ * Pre-built prompt templates for common reasoning tasks
+ */
+
+// Core Reasoning Prompts
+server.registerPrompt(
+  'debug_with_reasoning',
+  {
+    title: 'Debug Code with Reasoning',
+    description: 'Debug code issues using DeepSeek R1 reasoning model with step-by-step analysis',
+    argsSchema: {
+      code: z.string().describe('Code to debug'),
+      error: z.string().optional().describe('Error message or description of the issue'),
+      language: z.string().optional().describe('Programming language'),
+    },
+  },
+  ({ code, error, language }, _extra) => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `You are an expert debugging assistant. Analyze this code using deep reasoning.
+
+${language ? `Language: ${language}` : ''}
+${error ? `Error/Issue: ${error}` : ''}
+
+Code:
+\`\`\`
+${code}
+\`\`\`
+
+Please:
+1. Identify the bug or issue
+2. Explain your reasoning process step-by-step
+3. Suggest a fix with explanation
+4. Provide the corrected code
+
+Use the deepseek_chat tool with model: "deepseek-reasoner" for detailed reasoning.`,
+        },
+      },
+    ],
+  })
+);
+
+server.registerPrompt(
+  'code_review_deep',
+  {
+    title: 'Deep Code Review',
+    description: 'Comprehensive code review analyzing quality, security, performance, and best practices',
+    argsSchema: {
+      code: z.string().describe('Code to review'),
+      language: z.string().optional().describe('Programming language'),
+      focus: z.enum(['security', 'performance', 'quality', 'all']).default('all').describe('Review focus area'),
+    },
+  },
+  ({ code, language, focus }, _extra) => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `You are an expert code reviewer. Perform a comprehensive code review.
+
+${language ? `Language: ${language}` : ''}
+Focus: ${focus === 'all' ? 'Security, Performance, Code Quality, Best Practices' : focus}
+
+Code:
+\`\`\`
+${code}
+\`\`\`
+
+For each issue found, provide:
+1. **Issue**: What's wrong
+2. **Reasoning**: Why it's a problem
+3. **Severity**: Critical/High/Medium/Low
+4. **Fix**: How to resolve it
+
+Use the deepseek_chat tool with model: "deepseek-reasoner" for thorough analysis.`,
+        },
+      },
+    ],
+  })
+);
+
+server.registerPrompt(
+  'research_synthesis',
+  {
+    title: 'Research & Synthesis',
+    description: 'Research a topic and synthesize information into a structured report',
+    argsSchema: {
+      topic: z.string().describe('Topic to research'),
+      context: z.string().optional().describe('Additional context or specific questions'),
+      depth: z.enum(['brief', 'moderate', 'comprehensive']).default('moderate').describe('Research depth'),
+    },
+  },
+  ({ topic, context, depth }, _extra) => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `You are a research assistant. Research and synthesize information about this topic.
+
+Topic: ${topic}
+${context ? `Context: ${context}` : ''}
+Depth: ${depth}
+
+Please provide:
+1. **Overview**: Brief summary
+2. **Key Findings**: Main points with reasoning
+3. **Analysis**: Deep dive with reasoning process
+4. **Conclusion**: Synthesis and implications
+5. **Sources**: Cite reasoning steps
+
+Use the deepseek_chat tool with model: "deepseek-reasoner" for comprehensive analysis.`,
+        },
+      },
+    ],
+  })
+);
+
+server.registerPrompt(
+  'strategic_planning',
+  {
+    title: 'Strategic Planning',
+    description: 'Analyze options and create strategic plans with reasoning for each decision',
+    argsSchema: {
+      goal: z.string().describe('Goal or objective'),
+      context: z.string().optional().describe('Situational context'),
+      constraints: z.string().optional().describe('Constraints or limitations'),
+    },
+  },
+  ({ goal, context, constraints }, _extra) => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `You are a strategic planning expert. Create a detailed plan with reasoning.
+
+Goal: ${goal}
+${context ? `Context: ${context}` : ''}
+${constraints ? `Constraints: ${constraints}` : ''}
+
+Please provide:
+1. **Situation Analysis**: Current state with reasoning
+2. **Options**: List possible approaches
+3. **Evaluation**: Pros/cons of each option with reasoning
+4. **Recommendation**: Best approach with detailed reasoning
+5. **Action Plan**: Step-by-step plan with rationale
+
+Use the deepseek_chat tool with model: "deepseek-reasoner" for thorough strategic thinking.`,
+        },
+      },
+    ],
+  })
+);
+
+server.registerPrompt(
+  'explain_like_im_five',
+  {
+    title: 'Explain Like I\'m Five',
+    description: 'Explain complex topics in simple terms using analogies and reasoning',
+    argsSchema: {
+      topic: z.string().describe('Complex topic to explain'),
+      audience: z.enum(['child', 'beginner', 'intermediate']).default('beginner').describe('Target audience level'),
+    },
+  },
+  ({ topic, audience }, _extra) => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `You are an expert explainer. Make complex topics simple and understandable.
+
+Topic: ${topic}
+Audience: ${audience}
+
+Please:
+1. Start with a simple analogy or metaphor
+2. Break down the concept step-by-step
+3. Use everyday examples
+4. Show your reasoning for why this explanation works
+5. Build up complexity gradually if needed
+
+Use the deepseek_chat tool with model: "deepseek-reasoner" to ensure logical explanations.`,
+        },
+      },
+    ],
+  })
+);
+
+// Advanced Prompts
+server.registerPrompt(
+  'mathematical_proof',
+  {
+    title: 'Mathematical Proof',
+    description: 'Prove mathematical statements with rigorous step-by-step reasoning',
+    argsSchema: {
+      statement: z.string().describe('Mathematical statement to prove'),
+      context: z.string().optional().describe('Mathematical context or axioms'),
+    },
+  },
+  ({ statement, context }, _extra) => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `You are a mathematician. Provide a rigorous proof.
+
+Statement to prove: ${statement}
+${context ? `Context/Axioms: ${context}` : ''}
+
+Provide:
+1. **Given**: What we know
+2. **To Prove**: What we're proving
+3. **Proof**: Step-by-step logical reasoning
+4. **Conclusion**: QED statement
+
+Use the deepseek_chat tool with model: "deepseek-reasoner" for strict logical reasoning.`,
+        },
+      },
+    ],
+  })
+);
+
+server.registerPrompt(
+  'argument_validation',
+  {
+    title: 'Argument Validation',
+    description: 'Analyze arguments for logical fallacies and reasoning errors',
+    argsSchema: {
+      argument: z.string().describe('Argument to validate'),
+      type: z.enum(['informal', 'formal', 'both']).default('informal').describe('Analysis type'),
+    },
+  },
+  ({ argument, type }, _extra) => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `You are a logic expert. Analyze this argument for validity.
+
+Argument:
+${argument}
+
+Analysis type: ${type}
+
+Please identify:
+1. **Structure**: Break down the argument's structure
+2. **Premises**: List all premises and assumptions
+3. **Conclusion**: What's being claimed
+4. **Reasoning**: Analyze the logical flow
+5. **Fallacies**: Any logical fallacies or errors
+6. **Validity**: Is the reasoning sound?
+7. **Improvements**: How to strengthen the argument
+
+Use the deepseek_chat tool with model: "deepseek-reasoner" for thorough logical analysis.`,
+        },
+      },
+    ],
+  })
+);
+
+server.registerPrompt(
+  'creative_ideation',
+  {
+    title: 'Creative Ideation',
+    description: 'Generate creative ideas with reasoning for feasibility and value',
+    argsSchema: {
+      challenge: z.string().describe('Problem or challenge to solve'),
+      constraints: z.string().optional().describe('Constraints or requirements'),
+      quantity: z.number().min(1).max(20).default(5).describe('Number of ideas to generate'),
+    },
+  },
+  ({ challenge, constraints, quantity }, _extra) => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `You are a creative problem solver. Generate innovative ideas with reasoning.
+
+Challenge: ${challenge}
+${constraints ? `Constraints: ${constraints}` : ''}
+Ideas needed: ${quantity}
+
+For each idea, provide:
+1. **Idea**: The concept
+2. **Reasoning**: Why this could work
+3. **Feasibility**: How realistic it is (High/Medium/Low)
+4. **Value**: Potential impact
+5. **Next Steps**: How to validate/implement
+
+Use the deepseek_chat tool with model: "deepseek-reasoner" for reasoned creativity.`,
+        },
+      },
+    ],
+  })
+);
+
+server.registerPrompt(
+  'cost_comparison',
+  {
+    title: 'LLM Cost Comparison',
+    description: 'Compare costs of different LLMs for a task and show savings with DeepSeek',
+    argsSchema: {
+      task: z.string().describe('Task description'),
+      estimated_tokens: z.number().min(100).describe('Estimated token count (prompt + completion)'),
+    },
+  },
+  ({ task, estimated_tokens }, _extra) => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `You are a cost analysis expert. Compare LLM costs for this task.
+
+Task: ${task}
+Estimated tokens: ${estimated_tokens} (prompt + completion)
+
+Calculate costs for:
+1. **DeepSeek Chat**: $0.14/1M prompt + $0.28/1M completion
+2. **DeepSeek Reasoner**: $0.42/1M prompt + $0.42/1M completion
+3. **Claude Sonnet**: $3/1M prompt + $15/1M completion
+4. **GPT-4**: $2.50/1M prompt + $10/1M completion
+
+Show:
+- Cost breakdown per model
+- Savings percentage with DeepSeek
+- When to use which model (cost vs quality)
+
+Use the deepseek_chat tool with model: "deepseek-chat" for this analysis.`,
+        },
+      },
+    ],
+  })
+);
+
+server.registerPrompt(
+  'pair_programming',
+  {
+    title: 'Pair Programming',
+    description: 'Interactive coding assistant that explains reasoning for code decisions',
+    argsSchema: {
+      task: z.string().describe('Coding task'),
+      language: z.string().describe('Programming language'),
+      style: z.enum(['beginner', 'intermediate', 'expert']).default('intermediate').describe('Code complexity level'),
+    },
+  },
+  ({ task, language, style }, _extra) => ({
+    messages: [
+      {
+        role: 'user' as const,
+        content: {
+          type: 'text' as const,
+          text: `You are a pair programming partner. Help me write code with clear reasoning.
+
+Task: ${task}
+Language: ${language}
+Level: ${style}
+
+Please:
+1. **Plan**: Break down the task with reasoning
+2. **Code**: Write clean, commented code
+3. **Explain**: Explain each major decision
+4. **Test**: Suggest test cases with reasoning
+5. **Optimize**: Mention potential improvements
+
+Use the deepseek_chat tool with model: "deepseek-reasoner" for thoughtful code generation.`,
+        },
+      },
+    ],
+  })
 );
 
 // Start server with stdio transport
@@ -182,6 +614,7 @@ async function main() {
 
   console.error('[DeepSeek MCP] Server running on stdio');
   console.error('[DeepSeek MCP] Available tools: deepseek_chat');
+  console.error('[DeepSeek MCP] Available prompts: 10 reasoning templates');
 }
 
 // Error handling
