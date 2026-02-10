@@ -216,10 +216,10 @@ Good documentation is crucial! When contributing:
 
 ## Getting Help
 
-- 📖 Read the [README](README.md)
-- 🐛 Check [existing issues](https://github.com/arikusi/deepseek-mcp-server/issues)
-- 💬 Start a [discussion](https://github.com/arikusi/deepseek-mcp-server/discussions)
-- 📧 Open a [new issue](https://github.com/arikusi/deepseek-mcp-server/issues/new)
+- Read the [README](README.md)
+- Check [existing issues](https://github.com/arikusi/deepseek-mcp-server/issues)
+- Start a [discussion](https://github.com/arikusi/deepseek-mcp-server/discussions)
+- Open a [new issue](https://github.com/arikusi/deepseek-mcp-server/issues/new)
 
 ## License
 
@@ -227,4 +227,4 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ---
 
-Thank you for contributing to DeepSeek MCP Server! 🎉
+Thank you for contributing to DeepSeek MCP Server!

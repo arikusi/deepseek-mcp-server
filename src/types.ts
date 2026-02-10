@@ -11,7 +11,7 @@ export type DeepSeekModel = 'deepseek-chat' | 'deepseek-reasoner';
 /**
  * Message role in conversation
  */
-export type MessageRole = 'system' | 'user' | 'assistant';
+export type MessageRole = 'system' | 'user' | 'assistant' | 'tool';
 
 /**
  * Chat message structure
@@ -19,7 +19,51 @@ export type MessageRole = 'system' | 'user' | 'assistant';
 export interface ChatMessage {
   role: MessageRole;
   content: string;
+  tool_call_id?: string;
 }
+
+// ─── Function Calling Types ─────────────────────────────────────
+
+/**
+ * Function definition within a tool
+ */
+export interface FunctionDefinition {
+  name: string;
+  description?: string;
+  parameters?: Record<string, unknown>;
+  strict?: boolean;
+}
+
+/**
+ * Tool definition for function calling
+ */
+export interface ToolDefinition {
+  type: 'function';
+  function: FunctionDefinition;
+}
+
+/**
+ * Controls which tool the model calls
+ */
+export type ToolChoice =
+  | 'auto'
+  | 'none'
+  | 'required'
+  | { type: 'function'; function: { name: string } };
+
+/**
+ * Tool call returned by the model
+ */
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
+}
+
+// ─── Request/Response Types ─────────────────────────────────────
 
 /**
  * Parameters for chat completion request
@@ -33,6 +77,8 @@ export interface ChatCompletionParams {
   frequency_penalty?: number;
   presence_penalty?: number;
   stop?: string | string[];
+  tools?: ToolDefinition[];
+  tool_choice?: ToolChoice;
 }
 
 /**
@@ -40,7 +86,7 @@ export interface ChatCompletionParams {
  */
 export interface ChatCompletionResponse {
   content: string;
-  reasoning_content?: string; // Only for deepseek-reasoner model
+  reasoning_content?: string;
   model: string;
   usage: {
     prompt_tokens: number;
@@ -48,6 +94,7 @@ export interface ChatCompletionResponse {
     total_tokens: number;
   };
   finish_reason: string;
+  tool_calls?: ToolCall[];
 }
 
 /**
@@ -57,11 +104,26 @@ export interface DeepSeekChatInput {
   messages: Array<{
     role: string;
     content: string;
+    tool_call_id?: string;
   }>;
   model?: 'deepseek-chat' | 'deepseek-reasoner';
   temperature?: number;
   max_tokens?: number;
   stream?: boolean;
+  tools?: Array<{
+    type: 'function';
+    function: {
+      name: string;
+      description?: string;
+      parameters?: Record<string, unknown>;
+      strict?: boolean;
+    };
+  }>;
+  tool_choice?:
+    | 'auto'
+    | 'none'
+    | 'required'
+    | { type: 'function'; function: { name: string } };
 }
 
 /**

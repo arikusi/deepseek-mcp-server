@@ -16,6 +16,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Nothing yet
 
+## [1.1.0] - 2026-02-10
+
+### Added
+- **Function Calling Support**: Full OpenAI-compatible function calling via `tools` and `tool_choice` parameters
+  - Define up to 128 tool definitions with JSON Schema parameters
+  - Control tool behavior with `tool_choice`: auto, none, required, or specific function
+  - Tool call results formatted in response with call IDs and arguments
+  - Streaming + function calling works together (delta accumulation)
+  - `tool` message role for sending tool results back
+- **Centralized Config System** (`src/config.ts`)
+  - Zod-validated configuration from environment variables
+  - `DEEPSEEK_BASE_URL`: Custom API endpoint (default: `https://api.deepseek.com`)
+  - `SHOW_COST_INFO`: Toggle cost display in responses (default: true)
+  - `REQUEST_TIMEOUT`: API request timeout in ms (default: 60000)
+  - `MAX_RETRIES`: Maximum API retry count (default: 2)
+- **Test Suite**: 85 tests with Vitest
+  - Config, Cost, Schemas, Client, and Function Calling tests
+  - 80%+ code coverage with v8 provider
+  - `npm test`, `npm run test:watch`, `npm run test:coverage` scripts
+- **2 New Prompt Templates** (total: 12)
+  - `function_call_debug`: Debug function calling issues
+  - `create_function_schema`: Generate JSON Schema from natural language
+- CI coverage job in GitHub Actions
+
+### Changed
+- **Project Structure**: Modularized codebase
+  - `src/config.ts`: Centralized configuration
+  - `src/cost.ts`: Cost calculation (extracted from index.ts)
+  - `src/schemas.ts`: Zod validation schemas (extracted from index.ts)
+- `DeepSeekClient` constructor now uses centralized config (no manual apiKey passing)
+- Server version bumped to 1.1.0
+- Updated `deepseek_chat` tool description to mention function calling
+
 ## [1.0.3] - 2025-02-07
 
 ### Added
@@ -91,6 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **1.1.0** (2026-02-10): Function calling, config system, test suite
 - **1.0.3** (2025-02-07): Cost tracking and prompt templates
 - **1.0.0** (2025-01-13): Initial public release
 - **0.1.0** (Development): Internal development version
@@ -101,7 +135,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [GitHub repository](https://github.com/arikusi/deepseek-mcp-server)
 - [Issue tracker](https://github.com/arikusi/deepseek-mcp-server/issues)
 
-[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.0.3...HEAD
+[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/arikusi/deepseek-mcp-server/releases/tag/v1.0.3
 [1.0.0]: https://github.com/arikusi/deepseek-mcp-server/releases/tag/v1.0.0
 [0.1.0]: https://github.com/arikusi/deepseek-mcp-server/releases/tag/v0.1.0

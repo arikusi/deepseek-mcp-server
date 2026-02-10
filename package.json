@@ -1,6 +1,6 @@
 {
   "name": "@arikusi/deepseek-mcp-server",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "MCP Server for DeepSeek API integration - enables Claude Code to use DeepSeek Chat and Reasoner models",
   "main": "dist/index.js",
   "type": "module",
@@ -12,7 +12,9 @@
     "watch": "tsc --watch",
     "prepare": "npm run build",
     "start": "node dist/index.js",
-    "test": "echo \"No tests yet\" && exit 0",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "lint": "tsc --noEmit",
     "prepublishOnly": "npm run build"
   },
@@ -27,7 +29,9 @@
     "claude-code",
     "ai",
     "llm",
-    "openai-compatible"
+    "openai-compatible",
+    "function-calling",
+    "tool-use"
   ],
   "author": "arikusi",
   "license": "MIT",
@@ -55,7 +59,9 @@
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
-    "typescript": "^5.7.3"
+    "@vitest/coverage-v8": "^4.0.18",
+    "typescript": "^5.7.3",
+    "vitest": "^4.0.18"
   },
   "engines": {
     "node": ">=18.0.0"

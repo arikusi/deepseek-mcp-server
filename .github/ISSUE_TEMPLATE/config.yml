@@ -1,11 +1,11 @@
 blank_issues_enabled: true
 contact_links:
-  - name: 💬 Discussions
+  - name: Discussions
     url: https://github.com/arikusi/deepseek-mcp-server/discussions
     about: Ask questions, share ideas, or discuss with the community
-  - name: 📖 Documentation
+  - name: Documentation
     url: https://github.com/arikusi/deepseek-mcp-server#readme
     about: Read the full documentation and guides
-  - name: 🌐 DeepSeek Platform
+  - name: DeepSeek Platform
     url: https://platform.deepseek.com
     about: Get your DeepSeek API key and check service status

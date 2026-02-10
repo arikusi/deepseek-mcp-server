@@ -43,7 +43,30 @@ jobs:
           test -f dist/index.js || exit 1
           test -f dist/deepseek-client.js || exit 1
           test -f dist/types.js || exit 1
+          test -f dist/config.js || exit 1
+          test -f dist/cost.js || exit 1
+          test -f dist/schemas.js || exit 1
         shell: bash
+
+  coverage:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests with coverage
+        run: npm run test:coverage
 
   lint:
     name: Lint

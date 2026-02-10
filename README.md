@@ -14,9 +14,9 @@ A Model Context Protocol (MCP) server that integrates DeepSeek AI models with MC
 - Gemini CLI (if MCP support is available)
 - Any MCP-compatible client
 
-> **⚠️ Note**: This is an unofficial community project and is not affiliated with DeepSeek.
+> **Note**: This is an unofficial community project and is not affiliated with DeepSeek.
 
-## ⚡ Quick Start
+## Quick Start
 
 ### For Claude Code
 
@@ -42,19 +42,22 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 
 **Get your API key:** [https://platform.deepseek.com](https://platform.deepseek.com)
 
-That's it! Your MCP client can now use DeepSeek models! 🎉
+That's it! Your MCP client can now use DeepSeek models!
 
 ---
 
 ## Features
 
-- 🤖 **DeepSeek Chat**: Fast and capable general-purpose model
-- 🧠 **DeepSeek Reasoner (R1)**: Advanced reasoning with chain-of-thought explanations
-- 💰 **Cost Tracking**: Automatic cost calculation for every request (USD)
-- 📋 **10 Prompt Templates**: Pre-built templates for debugging, code review, research, and more
-- 🔄 **Streaming Support**: Real-time response generation
-- 🛡️ **Type-Safe**: Full TypeScript implementation
-- 🎯 **MCP Compatible**: Works with any MCP-compatible CLI (Claude Code, Gemini CLI, etc.)
+- **DeepSeek Chat**: Fast and capable general-purpose model
+- **DeepSeek Reasoner (R1)**: Advanced reasoning with chain-of-thought explanations
+- **Function Calling**: OpenAI-compatible tool use with up to 128 tool definitions
+- **Cost Tracking**: Automatic cost calculation for every request (USD)
+- **Configurable**: Environment-based configuration with validation
+- **12 Prompt Templates**: Pre-built templates for debugging, code review, function calling, and more
+- **Streaming Support**: Real-time response generation
+- **Tested**: 85 tests with 80%+ code coverage
+- **Type-Safe**: Full TypeScript implementation
+- **MCP Compatible**: Works with any MCP-compatible CLI (Claude Code, Gemini CLI, etc.)
 
 ## Installation
 
@@ -130,22 +133,26 @@ If your MCP client doesn't support the `add` command, manually add to your confi
 
 ### `deepseek_chat`
 
-Chat with DeepSeek AI models with automatic cost tracking.
+Chat with DeepSeek AI models with automatic cost tracking and function calling support.
 
 **Parameters:**
 
 - `messages` (required): Array of conversation messages
-  - `role`: "system" | "user" | "assistant"
+  - `role`: "system" | "user" | "assistant" | "tool"
   - `content`: Message text
+  - `tool_call_id` (optional): Required for tool role messages
 - `model` (optional): "deepseek-chat" (default) or "deepseek-reasoner"
 - `temperature` (optional): 0-2, controls randomness (default: 1.0)
 - `max_tokens` (optional): Maximum tokens to generate
 - `stream` (optional): Enable streaming mode (default: false)
+- `tools` (optional): Array of tool definitions for function calling (max 128)
+- `tool_choice` (optional): "auto" | "none" | "required" | `{type: "function", function: {name: "..."}}`
 
 **Response includes:**
 - Content with formatting
+- Function call results (if tools were used)
 - Request information (tokens, model, cost in USD)
-- Structured data with `cost_usd` field
+- Structured data with `cost_usd` and `tool_calls` fields
 
 **Example:**
 
@@ -179,9 +186,44 @@ Chat with DeepSeek AI models with automatic cost tracking.
 
 The reasoner model will show its thinking process in `<thinking>` tags followed by the final answer.
 
+**Function Calling Example:**
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "What's the weather in Istanbul?"
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "location": {
+              "type": "string",
+              "description": "City name"
+            }
+          },
+          "required": ["location"]
+        }
+      }
+    }
+  ],
+  "tool_choice": "auto"
+}
+```
+
+When the model decides to call a function, the response includes `tool_calls` with the function name and arguments. You can then send the result back using a `tool` role message with the matching `tool_call_id`.
+
 ## Available Prompts
 
-Pre-built prompt templates for common tasks:
+Pre-built prompt templates for common tasks (12 total):
 
 ### Core Reasoning
 - **debug_with_reasoning**: Debug code with step-by-step analysis
@@ -196,6 +238,10 @@ Pre-built prompt templates for common tasks:
 - **creative_ideation**: Generate creative ideas with feasibility analysis
 - **cost_comparison**: Compare LLM costs for tasks
 - **pair_programming**: Interactive coding with explanations
+
+### Function Calling
+- **function_call_debug**: Debug function calling issues with tool definitions and messages
+- **create_function_schema**: Generate JSON Schema for function calling from natural language
 
 Each prompt is optimized for the DeepSeek Reasoner model to provide detailed reasoning.
 
@@ -216,6 +262,26 @@ Each prompt is optimized for the DeepSeek Reasoner model to provide detailed rea
 - **Special**: Provides chain-of-thought reasoning
 - **Output**: Both reasoning process and final answer
 
+## Configuration
+
+The server is configured via environment variables. All settings except `DEEPSEEK_API_KEY` are optional.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEEPSEEK_API_KEY` | (required) | Your DeepSeek API key |
+| `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | Custom API endpoint |
+| `SHOW_COST_INFO` | `true` | Show cost info in responses |
+| `REQUEST_TIMEOUT` | `60000` | Request timeout in milliseconds |
+| `MAX_RETRIES` | `2` | Maximum retry count for failed requests |
+
+**Example with custom config:**
+```bash
+claude mcp add -s user deepseek npx @arikusi/deepseek-mcp-server \
+  -e DEEPSEEK_API_KEY=your-key \
+  -e SHOW_COST_INFO=false \
+  -e REQUEST_TIMEOUT=30000
+```
+
 ## Development
 
 ### Project Structure
@@ -223,10 +289,19 @@ Each prompt is optimized for the DeepSeek Reasoner model to provide detailed rea
 ```
 deepseek-mcp-server/
 ├── src/
-│   ├── index.ts           # Main MCP server
-│   ├── deepseek-client.ts # DeepSeek API wrapper
-│   └── types.ts           # TypeScript definitions
-├── dist/                  # Compiled JavaScript
+│   ├── index.ts              # Main MCP server, tool & prompt registration
+│   ├── deepseek-client.ts    # DeepSeek API wrapper (OpenAI SDK)
+│   ├── config.ts             # Centralized config with Zod validation
+│   ├── cost.ts               # Cost calculation and formatting
+│   ├── schemas.ts            # Zod input validation schemas
+│   ├── types.ts              # TypeScript type definitions
+│   ├── config.test.ts        # Config tests
+│   ├── cost.test.ts          # Cost tests
+│   ├── schemas.test.ts       # Schema validation tests
+│   ├── deepseek-client.test.ts    # Client tests
+│   └── function-calling.test.ts   # Function calling tests
+├── dist/                     # Compiled JavaScript
+├── vitest.config.ts          # Test configuration
 ├── package.json
 ├── tsconfig.json
 └── README.md
@@ -242,6 +317,19 @@ npm run build
 
 ```bash
 npm run watch
+```
+
+### Testing
+
+```bash
+# Run all tests
+npm test
+
+# Watch mode
+npm run test:watch
+
+# With coverage report
+npm run test:coverage
 ```
 
 ### Testing Locally
@@ -357,10 +445,10 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 ## Support
 
-- 📖 [Documentation](https://github.com/arikusi/deepseek-mcp-server#readme)
-- 🐛 [Bug Reports](https://github.com/arikusi/deepseek-mcp-server/issues)
-- 💬 [Discussions](https://github.com/arikusi/deepseek-mcp-server/discussions)
-- 📧 Contact: [GitHub Issues](https://github.com/arikusi/deepseek-mcp-server/issues)
+- [Documentation](https://github.com/arikusi/deepseek-mcp-server#readme)
+- [Bug Reports](https://github.com/arikusi/deepseek-mcp-server/issues)
+- [Discussions](https://github.com/arikusi/deepseek-mcp-server/discussions)
+- Contact: [GitHub Issues](https://github.com/arikusi/deepseek-mcp-server/issues)
 
 ## Resources
 
@@ -376,6 +464,6 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 ---
 
-**Made with ❤️ by [@arikusi](https://github.com/arikusi)**
+**Made by [@arikusi](https://github.com/arikusi)**
 
 This is an unofficial community project and is not affiliated with DeepSeek.
