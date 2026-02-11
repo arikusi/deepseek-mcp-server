@@ -136,3 +136,97 @@ export interface DeepSeekError {
     code: string;
   };
 }
+
+// ─── OpenAI SDK Extension Types (DeepSeek-specific) ────────────
+
+/**
+ * DeepSeek chat completion message (extends OpenAI with reasoning_content)
+ */
+export interface DeepSeekChatCompletionMessage {
+  content: string | null;
+  role: 'assistant';
+  tool_calls?: Array<{
+    id: string;
+    type: 'function';
+    function: { name: string; arguments: string };
+  }>;
+  reasoning_content?: string;
+}
+
+/**
+ * DeepSeek chat completion choice
+ */
+export interface DeepSeekChatCompletionChoice {
+  message: DeepSeekChatCompletionMessage;
+  finish_reason: string;
+  index: number;
+}
+
+/**
+ * DeepSeek chat completion response (extends OpenAI response)
+ */
+export interface DeepSeekRawResponse {
+  id: string;
+  choices: DeepSeekChatCompletionChoice[];
+  model: string;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+/**
+ * DeepSeek stream delta
+ */
+export interface DeepSeekStreamDelta {
+  content?: string;
+  reasoning_content?: string;
+  tool_calls?: Array<{
+    index: number;
+    id?: string;
+    type?: 'function';
+    function?: { name?: string; arguments?: string };
+  }>;
+}
+
+/**
+ * DeepSeek stream chunk
+ */
+export interface DeepSeekStreamChunk {
+  choices: Array<{
+    delta: DeepSeekStreamDelta;
+    finish_reason: string | null;
+  }>;
+  model: string;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
+}
+
+// ─── Type Guards ───────────────────────────────────────────────
+
+/**
+ * Check if a message has reasoning_content (DeepSeek Reasoner)
+ */
+export function hasReasoningContent(
+  message: unknown
+): message is { reasoning_content: string } {
+  return (
+    typeof message === 'object' &&
+    message !== null &&
+    'reasoning_content' in message &&
+    typeof (message as Record<string, unknown>).reasoning_content === 'string'
+  );
+}
+
+/**
+ * Extract error message from unknown error
+ */
+export function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'Unknown error';
+}

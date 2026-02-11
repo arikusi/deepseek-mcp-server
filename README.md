@@ -55,7 +55,7 @@ That's it! Your MCP client can now use DeepSeek models!
 - **Configurable**: Environment-based configuration with validation
 - **12 Prompt Templates**: Pre-built templates for debugging, code review, function calling, and more
 - **Streaming Support**: Real-time response generation
-- **Tested**: 85 tests with 80%+ code coverage
+- **Tested**: 126 tests with 90%+ code coverage
 - **Type-Safe**: Full TypeScript implementation
 - **MCP Compatible**: Works with any MCP-compatible CLI (Claude Code, Gemini CLI, etc.)
 
@@ -273,6 +273,8 @@ The server is configured via environment variables. All settings except `DEEPSEE
 | `SHOW_COST_INFO` | `true` | Show cost info in responses |
 | `REQUEST_TIMEOUT` | `60000` | Request timeout in milliseconds |
 | `MAX_RETRIES` | `2` | Maximum retry count for failed requests |
+| `SKIP_CONNECTION_TEST` | `false` | Skip startup API connection test |
+| `MAX_MESSAGE_LENGTH` | `100000` | Maximum message content length (characters) |
 
 **Example with custom config:**
 ```bash
@@ -289,18 +291,25 @@ claude mcp add -s user deepseek npx @arikusi/deepseek-mcp-server \
 ```
 deepseek-mcp-server/
 ├── src/
-│   ├── index.ts              # Main MCP server, tool & prompt registration
+│   ├── index.ts              # Entry point, bootstrap (~80 lines)
+│   ├── server.ts             # McpServer factory (auto-version)
 │   ├── deepseek-client.ts    # DeepSeek API wrapper (OpenAI SDK)
 │   ├── config.ts             # Centralized config with Zod validation
 │   ├── cost.ts               # Cost calculation and formatting
 │   ├── schemas.ts            # Zod input validation schemas
-│   ├── types.ts              # TypeScript type definitions
-│   ├── config.test.ts        # Config tests
-│   ├── cost.test.ts          # Cost tests
-│   ├── schemas.test.ts       # Schema validation tests
-│   ├── deepseek-client.test.ts    # Client tests
-│   └── function-calling.test.ts   # Function calling tests
+│   ├── types.ts              # TypeScript types + type guards
+│   ├── errors.ts             # Custom error classes
+│   ├── tools/
+│   │   ├── deepseek-chat.ts  # deepseek_chat tool handler
+│   │   └── index.ts          # Tool registration aggregator
+│   └── prompts/
+│       ├── core.ts           # 5 core reasoning prompts
+│       ├── advanced.ts       # 5 advanced prompts
+│       ├── function-calling.ts # 2 function calling prompts
+│       └── index.ts          # Prompt registration aggregator
 ├── dist/                     # Compiled JavaScript
+├── llms.txt                  # AI discoverability index
+├── llms-full.txt             # Full docs for LLM context
 ├── vitest.config.ts          # Test configuration
 ├── package.json
 ├── tsconfig.json

@@ -1,0 +1,13 @@
+# DeepSeek MCP Server
+
+> MCP server integrating DeepSeek AI models (Chat + Reasoner/R1) with Claude Code, Gemini CLI, and other MCP clients. Function calling, cost tracking, 12 prompt templates.
+
+## Docs
+
+- [README](https://github.com/arikusi/deepseek-mcp-server#readme): Installation, quick start, configuration, usage examples
+- [API Reference](https://github.com/arikusi/deepseek-mcp-server#available-tools): deepseek_chat tool parameters and response format
+- [Function Calling](https://github.com/arikusi/deepseek-mcp-server#function-calling-example): Tool definitions, tool_choice, tool result messages
+- [Prompt Templates](https://github.com/arikusi/deepseek-mcp-server#available-prompts): 12 pre-built prompts for debugging, code review, research
+- [Configuration](https://github.com/arikusi/deepseek-mcp-server#configuration): Environment variables (API key, base URL, timeout, retries)
+- [Changelog](https://github.com/arikusi/deepseek-mcp-server/blob/main/CHANGELOG.md): Version history and release notes
+- [Full Documentation](https://github.com/arikusi/deepseek-mcp-server/blob/main/llms-full.txt): Complete docs in single file for LLM context

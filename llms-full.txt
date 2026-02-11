@@ -1,0 +1,182 @@
+# DeepSeek MCP Server - Complete Documentation
+
+A Model Context Protocol (MCP) server that integrates DeepSeek AI models with MCP-compatible clients like Claude Code and Gemini CLI. Provides chat completion, function calling, cost tracking, and 12 prompt templates via a single `deepseek_chat` tool.
+
+## Installation
+
+```bash
+# Claude Code (all projects)
+claude mcp add -s user deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=your-key
+
+# Gemini CLI
+gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=your-key
+
+# Global npm install
+npm install -g @arikusi/deepseek-mcp-server
+```
+
+Get API key: https://platform.deepseek.com
+
+## Models
+
+### deepseek-chat
+- General conversations, coding, content generation
+- Fast, 64K context, most economical
+- Pricing: $0.14/1M prompt + $0.28/1M completion tokens
+
+### deepseek-reasoner (R1)
+- Complex reasoning, math, logic, multi-step tasks
+- Shows chain-of-thought in reasoning_content field
+- 64K context
+- Pricing: $0.55/1M prompt + $2.19/1M completion tokens
+
+## Tool: deepseek_chat
+
+### Input Parameters
+
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| messages | Array<{role, content, tool_call_id?}> | Yes | - | Conversation messages. Roles: system, user, assistant, tool |
+| model | "deepseek-chat" \| "deepseek-reasoner" | No | "deepseek-chat" | Model to use |
+| temperature | number (0-2) | No | 1.0 | Sampling temperature |
+| max_tokens | number (1-32768) | No | model max | Maximum tokens to generate |
+| stream | boolean | No | false | Enable streaming mode |
+| tools | Array<ToolDefinition> (max 128) | No | - | Function calling tool definitions |
+| tool_choice | "auto" \| "none" \| "required" \| {type, function} | No | "auto" | Which tool to call |
+
+### Tool Definition Format
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "function_name",
+    "description": "What the function does",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "param1": { "type": "string", "description": "..." }
+      },
+      "required": ["param1"]
+    }
+  }
+}
+```
+
+### Response Format
+
+```json
+{
+  "content": "Response text",
+  "reasoning_content": "Chain-of-thought (reasoner only)",
+  "model": "deepseek-chat",
+  "usage": {
+    "prompt_tokens": 10,
+    "completion_tokens": 20,
+    "total_tokens": 30
+  },
+  "finish_reason": "stop",
+  "tool_calls": [
+    {
+      "id": "call_abc123",
+      "type": "function",
+      "function": { "name": "fn_name", "arguments": "{\"key\":\"value\"}" }
+    }
+  ],
+  "cost_usd": 0.000012
+}
+```
+
+## Function Calling Flow
+
+1. Send messages with `tools` array defining available functions
+2. Model responds with `tool_calls` containing function name and arguments
+3. Execute the function locally
+4. Send result back as a `tool` role message with `tool_call_id`
+5. Model generates final response using the tool result
+
+Example:
+```json
+{
+  "messages": [
+    {"role": "user", "content": "Weather in NYC?"}
+  ],
+  "tools": [{
+    "type": "function",
+    "function": {
+      "name": "get_weather",
+      "parameters": {"type": "object", "properties": {"city": {"type": "string"}}}
+    }
+  }]
+}
+```
+
+## Configuration (Environment Variables)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| DEEPSEEK_API_KEY | (required) | DeepSeek API key |
+| DEEPSEEK_BASE_URL | https://api.deepseek.com | Custom API endpoint |
+| SHOW_COST_INFO | true | Show cost info in responses |
+| REQUEST_TIMEOUT | 60000 | Request timeout (ms) |
+| MAX_RETRIES | 2 | Max retry count |
+| SKIP_CONNECTION_TEST | false | Skip startup API connection test |
+| MAX_MESSAGE_LENGTH | 100000 | Max message content length (chars) |
+
+## Prompt Templates (12 total)
+
+### Core Reasoning
+- debug_with_reasoning(code, error?, language?)
+- code_review_deep(code, language?, focus: security|performance|quality|all)
+- research_synthesis(topic, context?, depth: brief|moderate|comprehensive)
+- strategic_planning(goal, context?, constraints?)
+- explain_like_im_five(topic, audience: child|beginner|intermediate)
+
+### Advanced
+- mathematical_proof(statement, context?)
+- argument_validation(argument, type: informal|formal|both)
+- creative_ideation(challenge, constraints?, quantity: 1-20)
+- cost_comparison(task, estimated_tokens)
+- pair_programming(task, language, style: beginner|intermediate|expert)
+
+### Function Calling
+- function_call_debug(tools_json, messages_json, error?)
+- create_function_schema(description, examples?)
+
+## Architecture
+
+```
+src/
+  index.ts              # Entry point, bootstrap
+  server.ts             # McpServer factory (version from package.json)
+  deepseek-client.ts    # DeepSeek API wrapper (OpenAI SDK)
+  config.ts             # Zod-validated config from env vars
+  cost.ts               # Cost calculation per model
+  schemas.ts            # Zod input validation schemas
+  types.ts              # TypeScript types + type guards
+  errors.ts             # Custom error classes (ConfigError, ApiError, etc.)
+  tools/
+    deepseek-chat.ts    # deepseek_chat tool handler
+    index.ts            # Tool registration aggregator
+  prompts/
+    core.ts             # 5 core reasoning prompts
+    advanced.ts         # 5 advanced prompts
+    function-calling.ts # 2 function calling prompts
+    index.ts            # Prompt registration aggregator
+```
+
+## Tech Stack
+
+- TypeScript 5.7 (strict mode)
+- @modelcontextprotocol/sdk for MCP protocol
+- OpenAI SDK for API compatibility
+- Zod for validation
+- Vitest for testing (126 tests)
+- Node.js 18+
+
+## Links
+
+- npm: https://www.npmjs.com/package/@arikusi/deepseek-mcp-server
+- GitHub: https://github.com/arikusi/deepseek-mcp-server
+- DeepSeek API: https://api-docs.deepseek.com
+- MCP Spec: https://modelcontextprotocol.io

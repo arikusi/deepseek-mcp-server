@@ -41,11 +41,19 @@ jobs:
       - name: Check dist exists
         run: |
           test -f dist/index.js || exit 1
+          test -f dist/server.js || exit 1
           test -f dist/deepseek-client.js || exit 1
           test -f dist/types.js || exit 1
           test -f dist/config.js || exit 1
           test -f dist/cost.js || exit 1
           test -f dist/schemas.js || exit 1
+          test -f dist/errors.js || exit 1
+          test -f dist/tools/deepseek-chat.js || exit 1
+          test -f dist/tools/index.js || exit 1
+          test -f dist/prompts/core.js || exit 1
+          test -f dist/prompts/advanced.js || exit 1
+          test -f dist/prompts/function-calling.js || exit 1
+          test -f dist/prompts/index.js || exit 1
         shell: bash
 
   coverage:

@@ -16,6 +16,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Nothing yet
 
+## [1.1.1] - 2026-02-11
+
+### Added
+- **Custom Error Classes** (`src/errors.ts`): `BaseError`, `ConfigError`, `ApiError`, `RateLimitError`, `AuthenticationError`, `ValidationError`, `ConnectionError` with error cause chaining
+- **DeepSeek Type Extensions** (`src/types.ts`): `DeepSeekRawResponse`, `DeepSeekStreamChunk`, `DeepSeekStreamDelta` types and `hasReasoningContent()`, `getErrorMessage()` type guards
+- **Message Content Length Limit**: `MAX_MESSAGE_LENGTH` config (default: 100K chars) prevents excessive API costs
+- **Optional Connection Test**: `SKIP_CONNECTION_TEST=true` env skips startup API call for faster boot
+- **AI Discoverability**: `llms.txt` and `llms-full.txt` for LLM/AI agent consumption
+- **New Tests**: 126 tests (up from 85) covering errors, server factory, tool handlers, prompt registration
+
+### Changed
+- **Modular Architecture**: Monolithic `index.ts` (783 lines) split into focused modules:
+  - `src/server.ts`: McpServer factory with auto-version from package.json
+  - `src/tools/deepseek-chat.ts`: Tool handler (extracted from index.ts)
+  - `src/tools/index.ts`: Tool registration aggregator
+  - `src/prompts/core.ts`: 5 core reasoning prompts
+  - `src/prompts/advanced.ts`: 5 advanced prompts
+  - `src/prompts/function-calling.ts`: 2 function calling prompts
+  - `src/prompts/index.ts`: Prompt registration aggregator
+  - `src/index.ts`: Slim bootstrap (~80 lines)
+- **DRY Refactoring** (`deepseek-client.ts`): Extracted `buildRequestParams()` and `wrapError()` methods (eliminated code duplication)
+- **Type Safety**: Replaced 16 `any` casts with proper DeepSeek type extensions and type guards (`error: unknown` pattern)
+- **Config**: `process.exit(1)` replaced with `throw ConfigError` for testability
+- **Version**: Single source of truth from `package.json` via `createRequire` (no more manual sync)
+
+### Fixed
+- **Security**: Updated `@modelcontextprotocol/sdk` to fix cross-client data leak (GHSA-345p-7cg4-v4c7)
+- **Security**: Fixed `hono` transitive dependency vulnerabilities (XSS, cache deception, IP spoofing)
+- CI dist check updated for new file structure
+
 ## [1.1.0] - 2026-02-10
 
 ### Added
@@ -124,6 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Version History
 
+- **1.1.1** (2026-02-11): Modular architecture, type safety, security fixes, 126 tests
 - **1.1.0** (2026-02-10): Function calling, config system, test suite
 - **1.0.3** (2025-02-07): Cost tracking and prompt templates
 - **1.0.0** (2025-01-13): Initial public release
@@ -135,7 +166,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [GitHub repository](https://github.com/arikusi/deepseek-mcp-server)
 - [Issue tracker](https://github.com/arikusi/deepseek-mcp-server/issues)
 
-[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.1.1...HEAD
+[1.1.1]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/arikusi/deepseek-mcp-server/releases/tag/v1.0.3
 [1.0.0]: https://github.com/arikusi/deepseek-mcp-server/releases/tag/v1.0.0

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { loadConfig, getConfig, resetConfig } from './config.js';
+import { ConfigError } from './errors.js';
 
 describe('config', () => {
   const originalEnv = { ...process.env };
@@ -12,6 +13,8 @@ describe('config', () => {
     delete process.env.SHOW_COST_INFO;
     delete process.env.REQUEST_TIMEOUT;
     delete process.env.MAX_RETRIES;
+    delete process.env.SKIP_CONNECTION_TEST;
+    delete process.env.MAX_MESSAGE_LENGTH;
   });
 
   afterEach(() => {
@@ -51,19 +54,32 @@ describe('config', () => {
       expect(config1).toBe(config2);
     });
 
-    it('should exit if API key is missing', () => {
-      const mockExit = vi
-        .spyOn(process, 'exit')
-        .mockImplementation(() => undefined as never);
-      const mockError = vi
-        .spyOn(console, 'error')
-        .mockImplementation(() => {});
+    it('should throw ConfigError if API key is missing', () => {
+      expect(() => loadConfig()).toThrow(ConfigError);
+      expect(() => loadConfig()).toThrow('Configuration validation failed');
+    });
 
-      loadConfig();
+    it('should include issues in ConfigError', () => {
+      try {
+        loadConfig();
+      } catch (error) {
+        expect(error).toBeInstanceOf(ConfigError);
+        expect((error as ConfigError).issues.length).toBeGreaterThan(0);
+      }
+    });
 
-      expect(mockExit).toHaveBeenCalledWith(1);
-      mockExit.mockRestore();
-      mockError.mockRestore();
+    it('should load skipConnectionTest from env', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      process.env.SKIP_CONNECTION_TEST = 'true';
+      const config = loadConfig();
+      expect(config.skipConnectionTest).toBe(true);
+    });
+
+    it('should load maxMessageLength from env', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      process.env.MAX_MESSAGE_LENGTH = '50000';
+      const config = loadConfig();
+      expect(config.maxMessageLength).toBe(50000);
     });
   });
 
