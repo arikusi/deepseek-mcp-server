@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - HTTP transport now binds to `127.0.0.1` by default (configurable via `HTTP_HOST`). The SDK's DNS rebinding protection is active on loopback. Binding to `0.0.0.0` without a token prints a startup security warning.
 - `docker-compose.yml` publishes the port to `127.0.0.1` only, and the README's `docker run` example does the same.
+- **Minimum Node.js is now 20.** Node 18 reached end of life in April 2025 and the test toolchain (vitest 4) no longer runs on it. The published package follows suit (`engines.node` is `>=20.0.0`); CI tests on Node 20, 22, and 24.
 
 ### Added
 - `HTTP_AUTH_TOKEN`: when set, `POST/GET/DELETE /mcp` require `Authorization: Bearer <token>` (constant-time comparison). `/health` stays open for probes.
