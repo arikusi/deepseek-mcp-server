@@ -303,10 +303,12 @@ TRANSPORT=http HTTP_PORT=3000 DEEPSEEK_API_KEY=your-key node dist/index.js
 ```
 
 Endpoints:
-- `GET /health` — health check (status, version, uptime)
+- `GET /health` — health check (status, version, uptime), always open
 - `POST /mcp` — MCP JSON-RPC requests (Streamable HTTP protocol)
 - `GET /mcp` — SSE stream (requires Mcp-Session-Id header)
 - `DELETE /mcp` — terminate session
+
+Security (1.8.0+): in HTTP mode the server holds DEEPSEEK_API_KEY and spends it on every deepseek_chat call, so the endpoint must not sit open on a public interface. HTTP_HOST defaults to 127.0.0.1, so a plain run only listens on loopback with DNS rebinding protection active. To accept remote connections set HTTP_HOST=0.0.0.0 and set HTTP_AUTH_TOKEN, which makes /mcp require `Authorization: Bearer <token>` (/health stays open). Binding to 0.0.0.0 without a token prints a startup warning. Use HTTP_ALLOWED_HOSTS to keep host-header validation when binding to all interfaces, and front internet-facing deployments with an authenticating TLS reverse proxy.
 
 Each MCP session gets its own McpServer instance AND its own SessionStore instance (session-store isolation added in 1.7.0 to prevent cross-session data exposure). DeepSeekClient is shared across sessions since it is a stateless API client.
 
@@ -314,10 +316,11 @@ Each MCP session gets its own McpServer instance AND its own SessionStore instan
 
 ```bash
 docker build -t deepseek-mcp-server .
-docker run -d -p 3000:3000 -e DEEPSEEK_API_KEY=your-key deepseek-mcp-server
+# Reachable from the host's loopback only, with a bearer token
+docker run -d -p 127.0.0.1:3000:3000 -e DEEPSEEK_API_KEY=your-key -e HTTP_AUTH_TOKEN=your-token deepseek-mcp-server
 ```
 
-Docker defaults to HTTP transport. Health check is built in (wget to /health every 30s).
+Docker defaults to HTTP transport and binds 0.0.0.0 inside the container (required for the port mapping). Control exposure at the publish layer: the bundled docker-compose.yml publishes to 127.0.0.1 only. Set HTTP_AUTH_TOKEN if you publish the port on a public interface. Health check is built in (wget to /health every 30s).
 
 ## Architecture
 
@@ -372,6 +375,9 @@ src/
 | ENABLE_MULTIMODAL | false | Enable multimodal (image) input support |
 | TRANSPORT | stdio | Transport mode: stdio or http |
 | HTTP_PORT | 3000 | HTTP server port (when TRANSPORT=http) |
+| HTTP_HOST | 127.0.0.1 | Bind address for HTTP transport. Loopback by default; set to 0.0.0.0 for remote access (pair with auth) |
+| HTTP_AUTH_TOKEN | (unset) | When set, /mcp requires `Authorization: Bearer <token>`. /health stays open |
+| HTTP_ALLOWED_HOSTS | (unset) | Comma-separated allowed Host headers for DNS rebinding protection when binding to 0.0.0.0 |
 
 ## Tech Stack
 
@@ -379,7 +385,7 @@ src/
 - @modelcontextprotocol/sdk for MCP protocol
 - OpenAI SDK v6 for API compatibility
 - Zod v4 for validation
-- Vitest for testing (265 tests, ~89% line coverage)
+- Vitest for testing (276 tests, ~89% line coverage)
 - Node.js 18+
 
 ## Links

@@ -11,6 +11,10 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV TRANSPORT=http
 ENV HTTP_PORT=3000
+# A container must bind all interfaces for a published port to reach it.
+# Control exposure at the publish layer (docker-compose binds 127.0.0.1) and
+# set HTTP_AUTH_TOKEN when the port is reachable beyond the host's loopback.
+ENV HTTP_HOST=0.0.0.0
 COPY package*.json ./
 RUN npm ci --omit=dev --ignore-scripts
 COPY --from=builder /app/dist ./dist

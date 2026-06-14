@@ -24,6 +24,9 @@ const ConfigSchema = z.object({
   enableMultimodal: z.boolean().default(false),
   transport: z.enum(['stdio', 'http']).default('stdio'),
   httpPort: z.number().positive().default(3000),
+  httpHost: z.string().min(1).default('127.0.0.1'),
+  httpAuthToken: z.string().min(1).optional(),
+  httpAllowedHosts: z.array(z.string().min(1)).optional(),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -70,6 +73,11 @@ export function loadConfig(): Config {
     enableMultimodal: process.env.ENABLE_MULTIMODAL === 'true',
     transport: (process.env.TRANSPORT || 'stdio') as 'stdio' | 'http',
     httpPort: process.env.HTTP_PORT ? parseInt(process.env.HTTP_PORT, 10) : 3000,
+    httpHost: process.env.HTTP_HOST || '127.0.0.1',
+    httpAuthToken: process.env.HTTP_AUTH_TOKEN || undefined,
+    httpAllowedHosts: process.env.HTTP_ALLOWED_HOSTS
+      ? process.env.HTTP_ALLOWED_HOSTS.split(',').map((h) => h.trim()).filter(Boolean)
+      : undefined,
   };
 
   const result = ConfigSchema.safeParse(raw);

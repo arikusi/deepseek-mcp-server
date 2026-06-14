@@ -8,7 +8,7 @@ import { readFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
-let version = '1.7.0';
+let version = '1.8.0';
 try {
   const __dirname = dirname(fileURLToPath(import.meta.url));
   const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));

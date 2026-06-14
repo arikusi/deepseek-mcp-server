@@ -17,6 +17,9 @@ describe('config', () => {
     delete process.env.MAX_MESSAGE_LENGTH;
     delete process.env.TRANSPORT;
     delete process.env.HTTP_PORT;
+    delete process.env.HTTP_HOST;
+    delete process.env.HTTP_AUTH_TOKEN;
+    delete process.env.HTTP_ALLOWED_HOSTS;
   });
 
   afterEach(() => {
@@ -114,6 +117,39 @@ describe('config', () => {
       process.env.DEEPSEEK_API_KEY = 'test-key';
       process.env.TRANSPORT = 'websocket';
       expect(() => loadConfig()).toThrow(ConfigError);
+    });
+
+    it('should default httpHost to loopback', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      const config = loadConfig();
+      expect(config.httpHost).toBe('127.0.0.1');
+    });
+
+    it('should load HTTP_HOST from env', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      process.env.HTTP_HOST = '0.0.0.0';
+      const config = loadConfig();
+      expect(config.httpHost).toBe('0.0.0.0');
+    });
+
+    it('should leave httpAuthToken unset by default', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      const config = loadConfig();
+      expect(config.httpAuthToken).toBeUndefined();
+    });
+
+    it('should load HTTP_AUTH_TOKEN from env', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      process.env.HTTP_AUTH_TOKEN = 'secret-token';
+      const config = loadConfig();
+      expect(config.httpAuthToken).toBe('secret-token');
+    });
+
+    it('should parse HTTP_ALLOWED_HOSTS into a trimmed list', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      process.env.HTTP_ALLOWED_HOSTS = 'mcp.example.com, localhost ,';
+      const config = loadConfig();
+      expect(config.httpAllowedHosts).toEqual(['mcp.example.com', 'localhost']);
     });
   });
 

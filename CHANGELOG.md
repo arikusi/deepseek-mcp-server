@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-06-14
+
+### Security
+- **Missing authentication on the self-hosted HTTP endpoint.** In HTTP transport mode the server holds your `DEEPSEEK_API_KEY` and uses it for every `deepseek_chat` call, yet `POST /mcp` had no authentication and the server bound to `0.0.0.0`, so any client that could reach the port could initialize a session, enumerate tools, and invoke them. The defaults now bind to loopback and an optional bearer token guards the endpoint. Reported independently; advisory and CVE coordination in progress.
+
+### Changed
+- HTTP transport now binds to `127.0.0.1` by default (configurable via `HTTP_HOST`). The SDK's DNS rebinding protection is active on loopback. Binding to `0.0.0.0` without a token prints a startup security warning.
+- `docker-compose.yml` publishes the port to `127.0.0.1` only, and the README's `docker run` example does the same.
+
+### Added
+- `HTTP_AUTH_TOKEN`: when set, `POST/GET/DELETE /mcp` require `Authorization: Bearer <token>` (constant-time comparison). `/health` stays open for probes.
+- `HTTP_ALLOWED_HOSTS`: comma-separated allowed `Host` headers, keeping DNS rebinding protection when binding to `0.0.0.0`.
+- `SECURITY.md` with the disclosure policy and self-hosted HTTP hardening guidance.
+- Auth and host-binding tests (`src/transport-auth.test.ts`).
+
+### Fixed
+- Bumped `@modelcontextprotocol/sdk` to 1.29.0 and `vitest`/`@vitest/coverage-v8` to 4.1.8, clearing all transitive `npm audit` advisories (13 to 0).
+
 ## [1.7.0] - 2026-04-22
 
 ### Security

@@ -2,9 +2,16 @@ services:
   deepseek-mcp:
     build: .
     ports:
-      - "3000:3000"
+      # Published on the host's loopback only. The /mcp endpoint holds your
+      # DeepSeek API key, so do not publish it on a public interface without
+      # setting HTTP_AUTH_TOKEN below. To expose it, change this to
+      # "0.0.0.0:3000:3000" (or "3000:3000") and set HTTP_AUTH_TOKEN.
+      - "127.0.0.1:3000:3000"
     environment:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - TRANSPORT=http
       - HTTP_PORT=3000
+      # Require `Authorization: Bearer <token>` on /mcp. Uncomment and set a
+      # strong value before exposing the port beyond localhost.
+      # - HTTP_AUTH_TOKEN=${HTTP_AUTH_TOKEN}
     restart: unless-stopped

@@ -429,6 +429,9 @@ The server is configured via environment variables. All settings except `DEEPSEE
 | `ENABLE_MULTIMODAL` | `false` | Enable multimodal (image) input support |
 | `TRANSPORT` | `stdio` | Transport mode: `stdio` or `http` |
 | `HTTP_PORT` | `3000` | HTTP server port (when TRANSPORT=http) |
+| `HTTP_HOST` | `127.0.0.1` | Bind address for HTTP transport. Loopback by default so a fresh run is not exposed. Set to `0.0.0.0` to accept remote connections (do this only with auth or a proxy in front) |
+| `HTTP_AUTH_TOKEN` | _(unset)_ | When set, `POST /mcp` requires `Authorization: Bearer <token>`. `/health` stays open. Strongly recommended whenever the port is reachable beyond localhost |
+| `HTTP_ALLOWED_HOSTS` | _(unset)_ | Comma-separated list of allowed `Host` headers for DNS rebinding protection when binding to `0.0.0.0` (e.g. `mcp.example.com,localhost`) |
 
 **Example with custom config:**
 ```bash
@@ -559,10 +562,39 @@ curl http://localhost:3000/health
 
 The MCP endpoint is available at `POST /mcp` (Streamable HTTP protocol).
 
+**Securing the endpoint (read before exposing it).** In self-hosted HTTP mode the
+server holds your `DEEPSEEK_API_KEY` and uses it for every `deepseek_chat` call.
+Anyone who can reach `POST /mcp` can invoke tools and spend that key, so the
+endpoint must not sit open on a public interface. The defaults are built around
+this:
+
+1. `HTTP_HOST` defaults to `127.0.0.1`, so a plain run only listens on loopback and the SDK's DNS rebinding protection is active. Nothing off the machine can reach it.
+2. To accept remote connections, set `HTTP_HOST=0.0.0.0`, but then set `HTTP_AUTH_TOKEN` as well so `/mcp` requires `Authorization: Bearer <token>`. If you bind to `0.0.0.0` without a token, the server prints a loud warning on startup.
+3. For an internet-facing deployment, put an authenticating reverse proxy with TLS in front and set `HTTP_ALLOWED_HOSTS` to your real hostname(s).
+
+```bash
+# Exposed deployment with a bearer token
+TRANSPORT=http HTTP_HOST=0.0.0.0 HTTP_PORT=3000 \
+  HTTP_AUTH_TOKEN=$(openssl rand -hex 32) \
+  HTTP_ALLOWED_HOSTS=mcp.example.com \
+  DEEPSEEK_API_KEY=your-key node dist/index.js
+
+# Calling it
+curl -X POST http://mcp.example.com:3000/mcp \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -d '{"jsonrpc":"2.0","method":"initialize","params":{"capabilities":{}},"id":1}'
+```
+
+`HTTP_AUTH_TOKEN` is a static gateway token for the self-hosted endpoint and is
+unrelated to your DeepSeek key. It is separate from the hosted BYOK endpoint
+above, where clients pass their own DeepSeek key as the bearer.
+
 **Session isolation (1.7.0+):** In HTTP transport each connected MCP session
 gets its own `McpServer` instance and its own `SessionStore`. Conversation
 history, session listings, and deletions are scoped to the MCP session that
-created them — one client cannot read, enumerate, or wipe another client's
+created them, so one client cannot read, enumerate, or wipe another client's
 sessions. STDIO transport is single-tenant by nature and unaffected.
 
 ### Docker
@@ -571,14 +603,21 @@ sessions. STDIO transport is single-tenant by nature and unaffected.
 # Build
 docker build -t deepseek-mcp-server .
 
-# Run
-docker run -d -p 3000:3000 -e DEEPSEEK_API_KEY=your-key deepseek-mcp-server
+# Run, reachable only from the host's loopback, with a bearer token
+docker run -d -p 127.0.0.1:3000:3000 \
+  -e DEEPSEEK_API_KEY=your-key \
+  -e HTTP_AUTH_TOKEN=your-token \
+  deepseek-mcp-server
 
 # Or use docker-compose
-DEEPSEEK_API_KEY=your-key docker compose up -d
+DEEPSEEK_API_KEY=your-key HTTP_AUTH_TOKEN=your-token docker compose up -d
 ```
 
-The Docker image defaults to HTTP transport on port 3000 with a built-in health check.
+The image runs HTTP transport on port 3000 with a health check. Inside the
+container it binds `0.0.0.0` (required for the port mapping to work), so control
+exposure at the publish layer: the example above and the bundled
+`docker-compose.yml` publish to `127.0.0.1` only. If you publish the port on a
+public interface, set `HTTP_AUTH_TOKEN`.
 
 ## Troubleshooting
 

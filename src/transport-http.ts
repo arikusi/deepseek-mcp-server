@@ -8,13 +8,55 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import { createMcpExpressApp } from '@modelcontextprotocol/sdk/server/express.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, timingSafeEqual } from 'node:crypto';
 import { version } from './server.js';
 
 const transports: Record<string, StreamableHTTPServerTransport> = {};
 
-export function createHttpApp(serverFactory: () => McpServer) {
-  const app = createMcpExpressApp({ host: '0.0.0.0' });
+export interface HttpAppOptions {
+  /**
+   * Hostname for DNS rebinding protection. Defaults to '127.0.0.1', which makes
+   * the SDK auto-enable host-header validation. Set to '0.0.0.0' only when the
+   * deployment is meant to be reachable from other hosts (e.g. inside a
+   * container) — pair it with authToken and/or allowedHosts.
+   */
+  host?: string;
+  /** When set, '/mcp' requires `Authorization: Bearer <token>`. '/health' stays open. */
+  authToken?: string;
+  /** Explicit allowed Host headers — keeps DNS rebinding protection on when binding to 0.0.0.0. */
+  allowedHosts?: string[];
+}
+
+/** Constant-time string comparison to avoid leaking the token via response timing. */
+function timingSafeStringEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
+
+export function createHttpApp(serverFactory: () => McpServer, opts: HttpAppOptions = {}) {
+  const { host = '127.0.0.1', authToken, allowedHosts } = opts;
+  const app = createMcpExpressApp(allowedHosts ? { host, allowedHosts } : { host });
+
+  // Optional bearer-token auth guarding the MCP endpoint. Registered before the
+  // /mcp route handlers so it runs first. /health is intentionally left open so
+  // container/orchestrator health probes work without credentials.
+  if (authToken) {
+    const expected = `Bearer ${authToken}`;
+    app.use('/mcp', (req, res, next) => {
+      const provided = req.headers['authorization'];
+      if (typeof provided === 'string' && timingSafeStringEqual(provided, expected)) {
+        next();
+        return;
+      }
+      res.status(401).json({
+        jsonrpc: '2.0',
+        error: { code: -32001, message: 'Unauthorized: missing or invalid bearer token' },
+        id: null,
+      });
+    });
+  }
 
   // Health check endpoint
   app.get('/health', (_req, res) => {
@@ -101,13 +143,32 @@ export function createHttpApp(serverFactory: () => McpServer) {
   return app;
 }
 
-export async function startHttpTransport(serverFactory: () => McpServer, port: number): Promise<void> {
-  const app = createHttpApp(serverFactory);
+export async function startHttpTransport(
+  serverFactory: () => McpServer,
+  port: number,
+  opts: HttpAppOptions = {},
+): Promise<void> {
+  const host = opts.host ?? '127.0.0.1';
+  const app = createHttpApp(serverFactory, opts);
 
-  const httpServer = app.listen(port, '0.0.0.0', () => {
-    console.error(`[DeepSeek MCP] HTTP transport listening on http://0.0.0.0:${port}`);
-    console.error(`[DeepSeek MCP] Health check: http://localhost:${port}/health`);
-    console.error(`[DeepSeek MCP] MCP endpoint: http://localhost:${port}/mcp`);
+  const exposed = host === '0.0.0.0' || host === '::';
+  if (exposed && !opts.authToken) {
+    console.error(
+      `[DeepSeek MCP] SECURITY WARNING: binding to ${host} with no HTTP_AUTH_TOKEN set. ` +
+        'The /mcp endpoint is unauthenticated and reachable from any network that can ' +
+        'reach this port, so anyone could invoke tools and spend your DEEPSEEK_API_KEY. ' +
+        'Set HTTP_AUTH_TOKEN, put an authenticating reverse proxy in front, or bind to ' +
+        '127.0.0.1 via HTTP_HOST.'
+    );
+  }
+
+  const httpServer = app.listen(port, host, () => {
+    console.error(`[DeepSeek MCP] HTTP transport listening on http://${host}:${port}`);
+    console.error(`[DeepSeek MCP] Health check: http://${host}:${port}/health`);
+    console.error(`[DeepSeek MCP] MCP endpoint: http://${host}:${port}/mcp`);
+    console.error(
+      `[DeepSeek MCP] Bearer-token auth on /mcp: ${opts.authToken ? 'ENABLED' : 'disabled'}`
+    );
   });
 
   const shutdown = async () => {

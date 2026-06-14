@@ -82,7 +82,11 @@ async function main() {
       registerAllResources(s);
       return s;
     };
-    await startHttpTransport(serverFactory, config.httpPort);
+    await startHttpTransport(serverFactory, config.httpPort, {
+      host: config.httpHost,
+      authToken: config.httpAuthToken,
+      allowedHosts: config.httpAllowedHosts,
+    });
   } else {
     // Stdio transport (default)
     const transport = new StdioServerTransport();
