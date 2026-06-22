@@ -1,14 +1,14 @@
 # DeepSeek MCP Server
 
 ## Tagline
-Use DeepSeek Chat & Reasoner models from any MCP client with sessions, fallback & cost tracking.
+Use DeepSeek V4 models (v4-flash & v4-pro) from any MCP client with sessions, fallback & cost tracking.
 
 ## Description
 MCP Server for DeepSeek API integration that enables Claude Code, Gemini CLI, and other MCP-compatible clients to use DeepSeek models for chat and reasoning. Supports multi-turn conversation sessions, function calling, thinking mode, JSON output, model fallback with circuit breaker protection, and real-time cost tracking. Available as both a local stdio server and a hosted remote endpoint (BYOK).
 
 ## Setup Requirements
 - `DEEPSEEK_API_KEY` (required): Your DeepSeek API key. Sign up and generate one at https://platform.deepseek.com
-- `DEFAULT_MODEL` (optional): Default model to use. Options: `deepseek-chat` or `deepseek-reasoner`. Default: `deepseek-chat`.
+- `DEFAULT_MODEL` (optional): Default model. Options: `deepseek-v4-flash` or `deepseek-v4-pro` (`deepseek-chat` / `deepseek-reasoner` accepted as aliases). Default: `deepseek-v4-flash`.
 - `DEEPSEEK_BASE_URL` (optional): Custom API base URL for proxies or compatible endpoints. Default: `https://api.deepseek.com`.
 - `FALLBACK_ENABLED` (optional): Enable automatic model fallback on failures. Default: `true`.
 - `SESSION_TTL_MINUTES` (optional): Session expiry time in minutes. Default: `30`.
@@ -17,10 +17,10 @@ MCP Server for DeepSeek API integration that enables Claude Code, Gemini CLI, an
 AI & ML
 
 ## Features
-- Chat with DeepSeek models (deepseek-chat and deepseek-reasoner)
+- Chat with DeepSeek V4 models (deepseek-v4-flash and deepseek-v4-pro, 1M context)
 - Multi-turn conversation sessions with automatic context management
 - Function calling / tool use support (up to 128 tool definitions)
-- Thinking mode for step-by-step reasoning (deepseek-reasoner)
+- Thinking mode for step-by-step reasoning (optional on any V4 model)
 - JSON output mode for structured responses
 - Automatic model fallback with circuit breaker protection
 - Real-time cost tracking with cache hit/miss breakdown

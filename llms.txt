@@ -1,6 +1,6 @@
 # DeepSeek MCP Server
 
-> MCP server integrating DeepSeek AI models (Chat + Reasoner) with Claude Code, Gemini CLI, and other MCP clients. Hosted remote endpoint at deepseek-mcp.tahirl.com/mcp (BYOK — Bring Your Own Key). Stdio and HTTP transports, Docker deployment, multi-turn sessions, model fallback with circuit breaker, MCP Resources, thinking mode, JSON output, function calling, multimodal content support, model-aware cost tracking, 12 prompt templates.
+> MCP server integrating DeepSeek V4 models (deepseek-v4-flash and deepseek-v4-pro, 1M context) with Claude Code, Gemini CLI, and other MCP clients. deepseek-chat and deepseek-reasoner stay as compatibility aliases. Hosted remote endpoint at deepseek-mcp.tahirl.com/mcp (BYOK, Bring Your Own Key). Stdio and HTTP transports, Docker deployment, multi-turn sessions, model fallback with circuit breaker, MCP Resources, thinking mode, JSON output, function calling, multimodal content support, model-aware cost tracking, 12 prompt templates.
 
 ## Docs
 

@@ -1,6 +1,6 @@
 # DeepSeek MCP Server - Complete Documentation
 
-A Model Context Protocol (MCP) server that integrates DeepSeek AI models with MCP-compatible clients like Claude Code and Gemini CLI. Hosted remote endpoint at deepseek-mcp.tahirl.com/mcp with BYOK (Bring Your Own Key) authentication. Also supports local stdio and self-hosted Streamable HTTP transports with Docker deployment. Provides multi-turn sessions, model fallback with circuit breaker, MCP Resources, chat completion, thinking mode, JSON output, function calling, multimodal content support, model-aware cost tracking, and 12 prompt templates.
+A Model Context Protocol (MCP) server that integrates DeepSeek V4 models (deepseek-v4-flash and deepseek-v4-pro, 1M context) with MCP-compatible clients like Claude Code and Gemini CLI. deepseek-chat and deepseek-reasoner remain as compatibility aliases. Hosted remote endpoint at deepseek-mcp.tahirl.com/mcp with BYOK (Bring Your Own Key) authentication. Also supports local stdio and self-hosted Streamable HTTP transports with Docker deployment. Provides multi-turn sessions, model fallback with circuit breaker, MCP Resources, chat completion, thinking mode, JSON output, function calling, multimodal content support, model-aware cost tracking, and 12 prompt templates.
 
 ## Installation
 
@@ -37,40 +37,37 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 # Global npm install
 npm install -g @arikusi/deepseek-mcp-server
 
-# Docker
-docker run -d -p 3000:3000 -e DEEPSEEK_API_KEY=your-key ghcr.io/arikusi/deepseek-mcp-server
+# Docker (build locally, bind to loopback with a token)
+docker build -t deepseek-mcp-server . && docker run -d -p 127.0.0.1:3000:3000 -e DEEPSEEK_API_KEY=your-key -e HTTP_AUTH_TOKEN=your-token deepseek-mcp-server
 ```
 
 Get API key: https://platform.deepseek.com
 
 ## Models
 
-Both models run DeepSeek-V3.2 with unified pricing. They are the same underlying model with different modes:
-- deepseek-chat = V3.2 non-thinking mode
-- deepseek-reasoner = V3.2 thinking mode (transparently routed as deepseek-chat + thinking:{type:"enabled"})
+deepseek-v4-flash and deepseek-v4-pro are the live V4 models (1M context, up to 384K output). deepseek-chat and deepseek-reasoner are accepted as compatibility aliases that resolve to deepseek-v4-flash; the DeepSeek API retires those two names on 2026-07-24. All calls are non-thinking by default for fast responses; enable reasoning with thinking:{type:"enabled"} or the deepseek-reasoner alias.
 
-### deepseek-chat
-- General conversations, coding, content generation
-- Non-thinking mode by default. Can enable thinking via `thinking: {type: "enabled"}` parameter
-- 128K context, 8K max output (default 4K), 64K max output when thinking enabled
-- Supports thinking mode, JSON mode, function calling, FIM completion
-- Pricing: $0.028/1M cache hit, $0.28/1M cache miss, $0.42/1M output
+### deepseek-v4-flash (default)
+- Fast, economical. General conversations, coding, content generation, agent loops
+- 1M context, up to 384K max output
+- Supports thinking mode, JSON mode, function calling
+- Pricing: $0.0028/1M cache hit, $0.14/1M cache miss, $0.28/1M output
 
-### deepseek-reasoner
-- Complex reasoning, math, logic, multi-step tasks
-- Transparently routed as deepseek-chat with thinking:{type:"enabled"}
-- This enables full feature parity including function calling, which the raw deepseek-reasoner API does not support
-- 128K context, 64K max output (default 32K)
-- Supports JSON mode, function calling (via transparent routing)
-- Pricing: $0.028/1M cache hit, $0.28/1M cache miss, $0.42/1M output
+### deepseek-v4-pro
+- Most capable. Complex reasoning, math, hard multi-step tasks
+- 1M context, up to 384K max output
+- Supports thinking mode, JSON mode, function calling
+- Pricing: $0.003625/1M cache hit, $0.435/1M cache miss, $0.87/1M output
 
 ### Model Routing Table
 
-| User selects | Sent to API | Thinking | reasoning_content | Function calling |
-|---|---|---|---|---|
-| deepseek-chat | deepseek-chat | Off | No | Yes |
-| deepseek-chat + thinking:enabled | deepseek-chat + thinking | On | Yes | Yes |
-| deepseek-reasoner | deepseek-chat + thinking | On | Yes | Yes |
+| User selects | Sent to API | Thinking | reasoning_content |
+|---|---|---|---|
+| deepseek-v4-flash | deepseek-v4-flash | Off (default) | No |
+| deepseek-v4-flash + thinking:enabled | deepseek-v4-flash | On | Yes |
+| deepseek-v4-pro | deepseek-v4-pro | Off (default) | No |
+| deepseek-chat (alias) | deepseek-v4-flash | Off | No |
+| deepseek-reasoner (alias) | deepseek-v4-flash | On | Yes |
 
 ## Tool: deepseek_chat
 
@@ -79,13 +76,14 @@ Both models run DeepSeek-V3.2 with unified pricing. They are the same underlying
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | messages | Array<{role, content, tool_call_id?}> | Yes | - | Conversation messages. Roles: system, user, assistant, tool. Content can be string or array of content parts (text/image_url) when multimodal is enabled |
-| model | "deepseek-chat" \| "deepseek-reasoner" | No | "deepseek-chat" | Model to use |
+| model | "deepseek-v4-flash" \| "deepseek-v4-pro" \| "deepseek-chat" \| "deepseek-reasoner" | No | "deepseek-v4-flash" | Model to use (chat/reasoner are aliases for v4-flash) |
 | temperature | number (0-2) | No | 1.0 | Sampling temperature. Ignored when thinking enabled |
-| max_tokens | number (1-65536) | No | model max | Max tokens: chat=8192, reasoner=65536. Both have 128K context |
+| max_tokens | number (1-384000) | No | model default | Max output tokens (V4 supports up to 384000; 1M context) |
 | stream | boolean | No | false | Enable streaming mode |
 | tools | Array<ToolDefinition> (max 128) | No | - | Function calling tool definitions |
 | tool_choice | "auto" \| "none" \| "required" \| {type, function} | No | "auto" | Which tool to call |
-| thinking | {type: "enabled" \| "disabled"} | No | - | Enable thinking mode |
+| thinking | {type: "enabled" \| "disabled"} | No | disabled | Toggle thinking mode (non-thinking by default) |
+| reasoning_effort | "high" \| "max" | No | high | Reasoning effort while thinking is active |
 | json_mode | boolean | No | false | Enable JSON output mode (supported by both models) |
 | session_id | string | No | - | Session ID for multi-turn conversations |
 
@@ -237,7 +235,7 @@ Disable with FALLBACK_ENABLED=false.
 
 ## Cost Tracking
 
-V3.2 provides cache-aware pricing. Cost display shows:
+V4 provides cache-aware pricing. Cost display shows:
 - Total cost in USD
 - Cache hit ratio (percentage of prompt tokens served from cache)
 - Estimated savings from cache hits
@@ -250,7 +248,7 @@ Example output: `$0.0042 (cache hit: 80%, saved ~$0.0168)`
 |----------|---------|-------------|
 | DEEPSEEK_API_KEY | (required) | DeepSeek API key |
 | DEEPSEEK_BASE_URL | https://api.deepseek.com | Custom API endpoint |
-| DEFAULT_MODEL | deepseek-chat | Default model for requests |
+| DEFAULT_MODEL | deepseek-v4-flash | Default model for requests |
 | SHOW_COST_INFO | true | Show cost info in responses |
 | REQUEST_TIMEOUT | 60000 | Request timeout (ms) |
 | MAX_RETRIES | 2 | Max retry count |
@@ -330,7 +328,7 @@ src/
   server.ts             # McpServer factory (version from package.json)
   deepseek-client.ts    # DeepSeek API wrapper (circuit breaker + fallback)
   config.ts             # Zod-validated config from env vars
-  cost.ts               # V3.2 cache-aware cost calculation
+  cost.ts               # V4 cache-aware cost calculation
   schemas.ts            # Zod input validation schemas
   types.ts              # TypeScript types + type guards
   errors.ts             # Custom error classes
@@ -360,7 +358,7 @@ src/
 |----------|---------|-------------|
 | DEEPSEEK_API_KEY | (required) | DeepSeek API key |
 | DEEPSEEK_BASE_URL | https://api.deepseek.com | Custom API endpoint |
-| DEFAULT_MODEL | deepseek-chat | Default model for requests |
+| DEFAULT_MODEL | deepseek-v4-flash | Default model for requests |
 | SHOW_COST_INFO | true | Show cost info in responses |
 | REQUEST_TIMEOUT | 60000 | Request timeout (ms) |
 | MAX_RETRIES | 2 | Max retry count |
@@ -381,12 +379,12 @@ src/
 
 ## Tech Stack
 
-- TypeScript 5.7 (strict mode)
+- TypeScript 6.0 (strict mode)
 - @modelcontextprotocol/sdk for MCP protocol
 - OpenAI SDK v6 for API compatibility
 - Zod v4 for validation
-- Vitest for testing (276 tests, ~89% line coverage)
-- Node.js 18+
+- Vitest for testing (280 tests, ~89% line coverage)
+- Node.js 20+
 
 ## Links
 

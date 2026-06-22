@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-06-22
+
+### Changed
+- **DeepSeek V4 migration.** `deepseek-v4-flash` (new default) and `deepseek-v4-pro` are now the primary models, both with 1M context and up to 384K output tokens. `deepseek-chat` and `deepseek-reasoner` are kept as backward-compatible aliases that resolve to `deepseek-v4-flash` (chat maps to non-thinking, reasoner to thinking). The DeepSeek API retires those two names on 2026-07-24, so the server translates them before sending the request.
+- **Default model is now `deepseek-v4-flash`** (was `deepseek-chat`). Direct v4 calls default to non-thinking for fast responses; enable reasoning with `thinking: {type: "enabled"}` or the `deepseek-reasoner` alias. The V4 API defaults thinking to enabled, so the server now always sends an explicit thinking flag.
+- V4 pricing per 1M tokens: v4-flash `$0.0028` cache hit / `$0.14` cache miss / `$0.28` output; v4-pro `$0.003625` / `$0.435` / `$0.87`.
+- `max_tokens` upper bound raised to 384000.
+- Model fallback now pairs `deepseek-v4-flash` with `deepseek-v4-pro`.
+- The hosted worker endpoint (`deepseek-mcp.tahirl.com`) was migrated to V4 as well.
+
+### Added
+- `reasoning_effort` parameter (`high` / `max`) for thinking mode.
+
+### Fixed
+- Declared `cost_usd` and `routed_from` in the `deepseek_chat` output schema. Strict MCP clients rejected every response under the SDK 1.29 structured-content validation because these fields were returned but not declared.
+
+### Removed
+- Stopped sending `frequency_penalty` / `presence_penalty`, which the V4 API deprecated and ignores.
+
 ## [1.8.0] - 2026-06-14
 
 ### Security

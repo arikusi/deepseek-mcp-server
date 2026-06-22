@@ -13,7 +13,7 @@
   <a href="https://www.npmjs.com/package/@arikusi/deepseek-mcp-server"><img src="https://img.shields.io/npm/dm/@arikusi/deepseek-mcp-server.svg" alt="npm downloads" /></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/node/v/@arikusi/deepseek-mcp-server.svg" alt="Node.js Version" /></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.7-blue.svg" alt="TypeScript" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-6.0-blue.svg" alt="TypeScript" /></a>
   <a href="https://github.com/arikusi/deepseek-mcp-server/actions"><img src="https://github.com/arikusi/deepseek-mcp-server/workflows/CI/badge.svg" alt="Build Status" /></a>
 </p>
 
@@ -84,7 +84,7 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 
 ## Features
 
-- **DeepSeek V3.2**: Both models now run DeepSeek-V3.2 (since Sept 2025)
+- **DeepSeek V4**: `deepseek-v4-flash` and `deepseek-v4-pro`, both with 1M context and optional chain-of-thought thinking mode
 - **Multi-Turn Sessions**: Conversation context preserved across requests via `session_id` parameter
 - **Model Fallback & Circuit Breaker**: Automatic fallback between models with circuit breaker protection against cascading failures
 - **MCP Resources**: `deepseek://models`, `deepseek://config`, `deepseek://usage` — query model info, config, and usage stats
@@ -100,7 +100,7 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 - **Remote Endpoint**: Hosted at `deepseek-mcp.tahirl.com/mcp` — BYOK (Bring Your Own Key), no install needed
 - **HTTP Transport**: Self-hosted remote access via Streamable HTTP with `TRANSPORT=http`
 - **Docker Ready**: Multi-stage Dockerfile with health checks for containerized deployment
-- **Tested**: 265 tests, ~89% line coverage
+- **Tested**: 280 tests, ~89% line coverage
 - **Type-Safe**: Full TypeScript implementation
 - **MCP Compatible**: Works with any MCP-compatible CLI (Claude Code, Gemini CLI, etc.)
 
@@ -108,7 +108,7 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - A DeepSeek API key (get one at [https://platform.deepseek.com](https://platform.deepseek.com))
 
 ### Manual Installation
@@ -186,13 +186,14 @@ Chat with DeepSeek AI models with automatic cost tracking and function calling s
   - `role`: "system" | "user" | "assistant" | "tool"
   - `content`: Message text
   - `tool_call_id` (optional): Required for tool role messages
-- `model` (optional): "deepseek-chat" (default) or "deepseek-reasoner"
+- `model` (optional): "deepseek-v4-flash" (default) or "deepseek-v4-pro". "deepseek-chat" and "deepseek-reasoner" are accepted as aliases that resolve to v4-flash (non-thinking / thinking).
 - `temperature` (optional): 0-2, controls randomness (default: 1.0). Ignored when thinking mode is enabled.
-- `max_tokens` (optional): Maximum tokens to generate (deepseek-chat: max 8192, deepseek-reasoner: max 65536)
+- `max_tokens` (optional): Maximum tokens to generate (V4 models support up to 384000)
 - `stream` (optional): Enable streaming mode (default: false)
 - `tools` (optional): Array of tool definitions for function calling (max 128)
 - `tool_choice` (optional): "auto" | "none" | "required" | `{type: "function", function: {name: "..."}}`
-- `thinking` (optional): Enable thinking mode `{type: "enabled"}`
+- `thinking` (optional): Toggle thinking mode, `{type: "enabled"}` to reason or `{type: "disabled"}` for a fast answer (non-thinking is the default)
+- `reasoning_effort` (optional): "high" (default) or "max", applies only while thinking mode is active
 - `json_mode` (optional): Enable JSON output mode (supported by both models)
 - `session_id` (optional): Session ID for multi-turn conversations. Previous context is automatically prepended.
 
@@ -383,28 +384,27 @@ Each prompt is optimized for the DeepSeek Reasoner model to provide detailed rea
 
 ## Models
 
-Both models run **DeepSeek-V3.2** with unified pricing.
+Both V4 models have a 1M-token context window, up to 384K output tokens, and support function calling, JSON mode, and optional chain-of-thought thinking. They are non-thinking by default here for fast responses; enable reasoning with `thinking: {type: "enabled"}` (or the `deepseek-reasoner` alias).
 
-### deepseek-chat
+### deepseek-v4-flash (default)
 
-- **Best for**: General conversations, coding, content generation
-- **Speed**: Fast
-- **Context**: 128K tokens
-- **Max Output**: 8K tokens (default 4K)
-- **Mode**: Non-thinking (can enable thinking via parameter)
-- **Features**: Thinking mode, JSON mode, function calling, FIM completion
-- **Pricing**: $0.028/1M cache hit, $0.28/1M cache miss, $0.42/1M output
+- **Best for**: General conversations, coding, content generation, agent loops
+- **Speed**: Fast and economical
+- **Context**: 1M tokens
+- **Max Output**: 384K tokens
+- **Pricing**: $0.0028/1M cache hit, $0.14/1M cache miss, $0.28/1M output
 
-### deepseek-reasoner
+### deepseek-v4-pro
 
-- **Best for**: Complex reasoning, math, logic problems, multi-step tasks
-- **Speed**: Slower (shows thinking process)
-- **Context**: 128K tokens
-- **Max Output**: 64K tokens (default 32K)
-- **Mode**: Thinking (always active, chain-of-thought reasoning)
-- **Features**: JSON mode, function calling
-- **Output**: Both reasoning process and final answer
-- **Pricing**: $0.028/1M cache hit, $0.28/1M cache miss, $0.42/1M output
+- **Best for**: Complex reasoning, math, hard multi-step tasks, top-quality output
+- **Speed**: Slower than flash, highest capability
+- **Context**: 1M tokens
+- **Max Output**: 384K tokens
+- **Pricing**: $0.003625/1M cache hit, $0.435/1M cache miss, $0.87/1M output
+
+### Compatibility aliases
+
+`deepseek-chat` and `deepseek-reasoner` are still accepted and resolve to `deepseek-v4-flash` (chat = non-thinking, reasoner = thinking), so existing configs keep working. The DeepSeek API retires those two names on **2026-07-24**; this server translates them to V4 for you.
 
 ## Configuration
 
@@ -414,7 +414,7 @@ The server is configured via environment variables. All settings except `DEEPSEE
 |----------|---------|-------------|
 | `DEEPSEEK_API_KEY` | (required) | Your DeepSeek API key |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | Custom API endpoint |
-| `DEFAULT_MODEL` | `deepseek-chat` | Default model for requests |
+| `DEFAULT_MODEL` | `deepseek-v4-flash` | Default model for requests |
 | `SHOW_COST_INFO` | `true` | Show cost info in responses |
 | `REQUEST_TIMEOUT` | `60000` | Request timeout in milliseconds |
 | `MAX_RETRIES` | `2` | Maximum retry count for failed requests |
