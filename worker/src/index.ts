@@ -10,15 +10,23 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { z } from 'zod';
 
-const VERSION = '1.6.0';
+const VERSION = '2.0.0';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 
-// Pricing per 1M tokens (DeepSeek V3.2 unified)
-const PRICING = {
-  cacheHit: 0.028,
-  cacheMiss: 0.28,
-  output: 0.42,
+// Pricing per 1M tokens (DeepSeek V4). chat/reasoner aliases resolve to v4-flash.
+interface ModelPricing {
+  cacheHit: number;
+  cacheMiss: number;
+  output: number;
+}
+const MODEL_PRICING: Record<string, ModelPricing> = {
+  'deepseek-v4-flash': { cacheHit: 0.0028, cacheMiss: 0.14, output: 0.28 },
+  'deepseek-v4-pro': { cacheHit: 0.003625, cacheMiss: 0.435, output: 0.87 },
 };
+const DEFAULT_PRICING: ModelPricing = MODEL_PRICING['deepseek-v4-flash'];
+function getPricing(model: string): ModelPricing {
+  return MODEL_PRICING[model] || DEFAULT_PRICING;
+}
 
 interface Env {}
 
@@ -28,15 +36,16 @@ function extractApiKey(request: Request): string | null {
   return auth.slice(7);
 }
 
-function calculateCost(usage: Record<string, number>): { totalCost: number; formatted: string } {
+function calculateCost(usage: Record<string, number>, model: string): { totalCost: number; formatted: string } {
+  const pricing = getPricing(model);
   const cacheHit = usage.prompt_cache_hit_tokens || 0;
   const cacheMiss = usage.prompt_cache_miss_tokens || usage.prompt_tokens || 0;
   const output = usage.completion_tokens || 0;
 
   const totalCost =
-    (cacheHit * PRICING.cacheHit) / 1_000_000 +
-    (cacheMiss * PRICING.cacheMiss) / 1_000_000 +
-    (output * PRICING.output) / 1_000_000;
+    (cacheHit * pricing.cacheHit) / 1_000_000 +
+    (cacheMiss * pricing.cacheMiss) / 1_000_000 +
+    (output * pricing.output) / 1_000_000;
 
   let formatted = `$${totalCost.toFixed(6)}`;
   if (cacheHit > 0) {
@@ -51,7 +60,7 @@ function createMcpServer(apiKey: string): McpServer {
 
   server.tool(
     'deepseek_chat',
-    'Chat with DeepSeek AI models (Chat + Reasoner). Supports function calling, thinking mode, JSON output, cost tracking.',
+    'Chat with DeepSeek V4 models (deepseek-v4-flash, deepseek-v4-pro; chat/reasoner accepted as aliases). Supports function calling, thinking mode, JSON output, cost tracking.',
     {
       messages: z
         .array(
@@ -64,11 +73,11 @@ function createMcpServer(apiKey: string): McpServer {
         .min(1)
         .describe('Conversation messages'),
       model: z
-        .enum(['deepseek-chat', 'deepseek-reasoner'])
-        .default('deepseek-chat')
-        .describe('Model to use'),
-      temperature: z.number().min(0).max(2).optional().describe('Sampling temperature (0-2)'),
-      max_tokens: z.number().min(1).max(65536).optional().describe('Max tokens to generate'),
+        .enum(['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'])
+        .default('deepseek-v4-flash')
+        .describe('Model to use. v4-flash (default) or v4-pro, both 1M context. Non-thinking by default; aliases: deepseek-chat -> v4-flash non-thinking, deepseek-reasoner -> v4-flash thinking'),
+      temperature: z.number().min(0).max(2).optional().describe('Sampling temperature (0-2). Ignored in thinking mode'),
+      max_tokens: z.number().min(1).max(384000).optional().describe('Max tokens to generate (up to 384000)'),
       stream: z.boolean().default(false).describe('Enable streaming (accumulated response returned)'),
       tools: z
         .array(
@@ -97,7 +106,11 @@ function createMcpServer(apiKey: string): McpServer {
       thinking: z
         .object({ type: z.enum(['enabled', 'disabled']) })
         .optional()
-        .describe('Enable thinking mode'),
+        .describe('Toggle thinking mode. {type:"enabled"} to reason, {type:"disabled"} for a fast answer (default)'),
+      reasoning_effort: z
+        .enum(['high', 'max'])
+        .optional()
+        .describe('Reasoning effort while thinking is active: high (default) or max'),
       json_mode: z.boolean().optional().describe('Enable JSON output mode'),
     },
     {
@@ -109,31 +122,39 @@ function createMcpServer(apiKey: string): McpServer {
     },
     async (params) => {
       try {
-        // Transparently convert reasoner to chat + thinking
-        // deepseek-reasoner = deepseek-chat with thinking always enabled
-        // chat + thinking supports function calling, which reasoner alone does not
-        let model = params.model;
-        let thinking = params.thinking;
+        // Resolve the user-facing model + thinking flag for the V4 API.
+        // v4-flash/v4-pro are the live models; chat/reasoner are compatibility
+        // aliases (retired by the API on 2026-07-24) that resolve to v4-flash.
+        // The API defaults thinking to enabled, so we always send an explicit flag.
+        let model: string;
+        let thinking: { type: 'enabled' | 'disabled' };
         const isReasonerRouted = params.model === 'deepseek-reasoner';
         if (isReasonerRouted) {
-          model = 'deepseek-chat';
-          thinking = { type: 'enabled' as const };
+          model = 'deepseek-v4-flash';
+          thinking = { type: 'enabled' };
+        } else if (params.model === 'deepseek-chat') {
+          model = 'deepseek-v4-flash';
+          thinking = params.thinking ?? { type: 'disabled' };
+        } else {
+          model = params.model;
+          thinking = params.thinking ?? { type: 'disabled' };
         }
 
-        const isThinkingMode = thinking?.type === 'enabled';
+        const isThinkingMode = thinking.type === 'enabled';
 
         // Build DeepSeek API request body — always stream to avoid CF timeout
         const body: Record<string, unknown> = {
           model,
           messages: params.messages,
           stream: true,
+          thinking,
         };
         // Sampling params are ignored by thinking mode - don't send them
         if (params.temperature !== undefined && !isThinkingMode) body.temperature = params.temperature;
         if (params.max_tokens !== undefined) body.max_tokens = params.max_tokens;
         if (params.tools) body.tools = params.tools;
         if (params.tool_choice) body.tool_choice = params.tool_choice;
-        if (thinking) body.thinking = thinking;
+        if (isThinkingMode && params.reasoning_effort) body.reasoning_effort = params.reasoning_effort;
         if (params.json_mode) body.response_format = { type: 'json_object' };
 
         const apiResponse = await fetch(DEEPSEEK_API_URL, {
@@ -212,7 +233,7 @@ function createMcpServer(apiKey: string): McpServer {
         }
 
         const toolCallsArray = Object.values(toolCalls);
-        const cost = calculateCost(usage);
+        const cost = calculateCost(usage, responseModel || model);
 
         // Format response text
         let text = '';
@@ -235,7 +256,7 @@ function createMcpServer(apiKey: string): McpServer {
         text += `- **Model:** ${responseModel || model}\n`;
         text += `- **Cost:** ${cost.formatted}`;
         if (isReasonerRouted) {
-          text += `\n- **Routed:** reasoner -> chat + thinking`;
+          text += `\n- **Routed:** deepseek-reasoner -> deepseek-v4-flash + thinking`;
         }
 
         return {
@@ -284,13 +305,13 @@ export default {
       return Response.json({
         name: 'deepseek-mcp-server',
         version: VERSION,
-        description: 'MCP server for DeepSeek AI — chat, reasoning, function calling, JSON mode, cost tracking',
+        description: 'MCP server for DeepSeek V4 AI — chat, reasoning, function calling, JSON mode, cost tracking',
         transport: { type: 'streamable-http', url: 'https://deepseek-mcp.tahirl.com/mcp' },
         capabilities: { tools: true, prompts: false, resources: false },
         tools: [
           {
             name: 'deepseek_chat',
-            description: 'Chat with DeepSeek AI models (Chat + Reasoner). Supports function calling, thinking mode, JSON output, cost tracking.',
+            description: 'Chat with DeepSeek V4 models (deepseek-v4-flash, deepseek-v4-pro; chat/reasoner accepted as aliases). Supports function calling, thinking mode, JSON output, cost tracking.',
             annotations: {
               title: 'DeepSeek Chat',
               readOnlyHint: true,
@@ -303,13 +324,14 @@ export default {
               required: ['messages'],
               properties: {
                 messages: { type: 'array', description: 'Conversation messages', items: { type: 'object' } },
-                model: { type: 'string', enum: ['deepseek-chat', 'deepseek-reasoner'], default: 'deepseek-chat' },
+                model: { type: 'string', enum: ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'], default: 'deepseek-v4-flash' },
                 temperature: { type: 'number', description: 'Sampling temperature (0-2)' },
-                max_tokens: { type: 'number', description: 'Max tokens to generate' },
+                max_tokens: { type: 'number', description: 'Max tokens to generate (up to 384000)' },
                 stream: { type: 'boolean', default: false },
                 tools: { type: 'array', description: 'Tool definitions for function calling' },
                 tool_choice: { description: 'Tool choice control' },
-                thinking: { type: 'object', description: 'Enable thinking mode' },
+                thinking: { type: 'object', description: 'Toggle thinking mode' },
+                reasoning_effort: { type: 'string', enum: ['high', 'max'], description: 'Reasoning effort while thinking' },
                 json_mode: { type: 'boolean', description: 'Enable JSON output mode' },
               },
             },
