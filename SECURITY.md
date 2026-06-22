@@ -12,9 +12,11 @@ know how you would like to be credited). Coordinated disclosure is appreciated.
 
 ## Supported versions
 
-Fixes land on the latest minor release. Versions `>=1.4.2, <1.7.0` are deprecated
-because of the HTTP session isolation issue described below. Upgrade to the latest
-release.
+Always use the latest release. Two disclosed vulnerabilities affect older versions:
+`>= 1.4.2, < 1.7.0` (cross-session data exposure in HTTP transport, CVE-2026-55604)
+and `>= 1.4.2, < 1.8.0` (missing authentication on the self-hosted HTTP endpoint,
+CVE-2026-55605). Both are fixed in 1.8.0 and later. Upgrade if you are on an earlier
+version.
 
 ## Hardening self-hosted HTTP mode
 

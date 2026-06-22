@@ -29,7 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.8.0] - 2026-06-14
 
 ### Security
-- **Missing authentication on the self-hosted HTTP endpoint.** In HTTP transport mode the server holds your `DEEPSEEK_API_KEY` and uses it for every `deepseek_chat` call, yet `POST /mcp` had no authentication and the server bound to `0.0.0.0`, so any client that could reach the port could initialize a session, enumerate tools, and invoke them. The defaults now bind to loopback and an optional bearer token guards the endpoint. Reported independently; advisory and CVE coordination in progress.
+- **Missing authentication on the self-hosted HTTP endpoint.** In HTTP transport mode the server holds your `DEEPSEEK_API_KEY` and uses it for every `deepseek_chat` call, yet `POST /mcp` had no authentication and the server bound to `0.0.0.0`, so any client that could reach the port could initialize a session, enumerate tools, and invoke them. The defaults now bind to loopback and an optional bearer token guards the endpoint. Reported independently. Tracked as CVE-2026-55605 (GHSA-72f3-6w86-7rv3).
 
 ### Changed
 - HTTP transport now binds to `127.0.0.1` by default (configurable via `HTTP_HOST`). The SDK's DNS rebinding protection is active on loopback. Binding to `0.0.0.0` without a token prints a startup security warning.
@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.7.0] - 2026-04-22
 
 ### Security
-- **Cross-session data exposure in HTTP transport (high severity).** The `SessionStore` was a process-wide singleton shared across all connected HTTP clients. In HTTP transport mode, any client that provided another client's `session_id` to `deepseek_chat` would read that client's conversation history. The `deepseek_sessions` tool compounded this by letting any client enumerate all active session IDs (`list`), delete any session (`delete`), or wipe every tenant's sessions at once (`clear`). STDIO transport was unaffected because each STDIO client runs its own server process. Full advisory and CVE coordination pending.
+- **Cross-session data exposure in HTTP transport (high severity).** The `SessionStore` was a process-wide singleton shared across all connected HTTP clients. In HTTP transport mode, any client that provided another client's `session_id` to `deepseek_chat` would read that client's conversation history. The `deepseek_sessions` tool compounded this by letting any client enumerate all active session IDs (`list`), delete any session (`delete`), or wipe every tenant's sessions at once (`clear`). STDIO transport was unaffected because each STDIO client runs its own server process. Tracked as CVE-2026-55604 (GHSA-fh3r-g96v-f578).
 
 ### Changed
 - **BREAKING (HTTP transport only).** Each HTTP session now gets an isolated `SessionStore` instance. Conversation history, session listings, and session deletion are scoped to the HTTP session that created them. Clients on the same server no longer share session state.
