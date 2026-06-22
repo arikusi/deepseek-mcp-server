@@ -91,7 +91,7 @@ describe('prompts', () => {
         {}
       );
       expect(result.messages[0].content.text).toContain('5000');
-      expect(result.messages[0].content.text).toContain('DeepSeek Chat');
+      expect(result.messages[0].content.text).toContain('DeepSeek V4 Flash');
     });
   });
 

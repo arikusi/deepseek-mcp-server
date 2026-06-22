@@ -60,7 +60,7 @@ export interface CostBreakdown {
 
 /**
  * Calculate cost for a request based on token usage.
- * Supports V3.2 cache hit/miss pricing. If cache fields are absent,
+ * Supports cache hit/miss pricing. If cache fields are absent,
  * treats all input tokens as cache miss (backward compatible).
  */
 export function calculateCost(usage: {

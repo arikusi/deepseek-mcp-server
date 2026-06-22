@@ -158,8 +158,8 @@ Task: ${task}
 Estimated tokens: ${estimated_tokens} (prompt + completion)
 
 Calculate costs for:
-1. **DeepSeek Chat**: $0.14/1M prompt + $0.28/1M completion
-2. **DeepSeek Reasoner**: $0.42/1M prompt + $0.42/1M completion
+1. **DeepSeek V4 Flash**: $0.14/1M prompt + $0.28/1M completion
+2. **DeepSeek V4 Pro**: $0.435/1M prompt + $0.87/1M completion
 3. **Claude Sonnet**: $3/1M prompt + $15/1M completion
 4. **GPT-4**: $2.50/1M prompt + $10/1M completion
 
@@ -168,7 +168,7 @@ Show:
 - Savings percentage with DeepSeek
 - When to use which model (cost vs quality)
 
-Use the deepseek_chat tool with model: "deepseek-chat" for this analysis.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" for this analysis.`,
           },
         },
       ],
