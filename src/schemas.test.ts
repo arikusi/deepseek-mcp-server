@@ -60,7 +60,7 @@ describe('schemas', () => {
       const result = ChatInputSchema.parse({
         messages: [{ role: 'user', content: 'Hi' }],
       });
-      expect(result.model).toBe('deepseek-chat');
+      expect(result.model).toBe('deepseek-v4-flash');
       expect(result.stream).toBe(false);
     });
 
@@ -115,18 +115,18 @@ describe('schemas', () => {
       expect(result.success).toBe(false);
     });
 
-    it('should accept max_tokens up to 65536', () => {
+    it('should accept max_tokens up to 384000', () => {
       const result = ChatInputSchema.safeParse({
         messages: [{ role: 'user', content: 'Hi' }],
-        max_tokens: 65536,
+        max_tokens: 384000,
       });
       expect(result.success).toBe(true);
     });
 
-    it('should reject max_tokens above 65536', () => {
+    it('should reject max_tokens above 384000', () => {
       const result = ChatInputSchema.safeParse({
         messages: [{ role: 'user', content: 'Hi' }],
-        max_tokens: 65537,
+        max_tokens: 384001,
       });
       expect(result.success).toBe(false);
     });
@@ -443,7 +443,7 @@ describe('schemas', () => {
       const result = ChatInputWithToolsSchema.parse({
         messages: [{ role: 'user', content: 'Hi' }],
       });
-      expect(result.model).toBe('deepseek-chat');
+      expect(result.model).toBe('deepseek-v4-flash');
       expect(result.stream).toBe(false);
       expect(result.tools).toBeUndefined();
       expect(result.tool_choice).toBeUndefined();

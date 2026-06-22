@@ -23,22 +23,20 @@ import type {
 } from './types.js';
 import { hasReasoningContent, getErrorMessage } from './types.js';
 
-/** Parameters that are incompatible with thinking mode */
-const THINKING_INCOMPATIBLE_PARAMS = [
-  'temperature',
-  'top_p',
-  'frequency_penalty',
-  'presence_penalty',
-] as const;
+/** Parameters that the API ignores while thinking mode is active */
+const THINKING_INCOMPATIBLE_PARAMS = ['temperature', 'top_p'] as const;
 
 /**
  * Fallback order per model. Each model lists fallback candidates in priority order.
  * When a model fails with a retryable error, the first available fallback is tried.
- * Add new models here as they become available in the API.
+ * v4-flash and v4-pro are genuinely different models, so they back each other up.
+ * The chat/reasoner aliases (which resolve to v4-flash) fall back to v4-pro.
  */
 const FALLBACK_ORDER: Record<string, string[]> = {
-  'deepseek-chat': ['deepseek-reasoner'],
-  'deepseek-reasoner': ['deepseek-chat'],
+  'deepseek-v4-flash': ['deepseek-v4-pro'],
+  'deepseek-v4-pro': ['deepseek-v4-flash'],
+  'deepseek-chat': ['deepseek-v4-pro'],
+  'deepseek-reasoner': ['deepseek-v4-pro'],
 };
 
 /** Extended response with optional fallback info */
@@ -118,27 +116,40 @@ export class DeepSeekClient {
     params: ChatCompletionParams,
     stream: boolean
   ): Record<string, unknown> {
-    // Transparently convert reasoner to chat + thinking
-    // deepseek-reasoner = deepseek-chat with thinking always enabled
-    // chat + thinking supports function calling, which reasoner alone does not
-    let effectiveModel: string = params.model;
-    let effectiveThinking = params.thinking;
-    if (params.model === 'deepseek-reasoner') {
-      effectiveModel = 'deepseek-chat';
-      effectiveThinking = { type: 'enabled' };
-      console.error('[DeepSeek MCP] Routing: reasoner -> chat + thinking');
+    // Resolve the user-facing model + thinking flag to what the API expects.
+    // v4-flash / v4-pro are the live API models. deepseek-chat and
+    // deepseek-reasoner are compatibility aliases (the API retires those names
+    // on 2026-07-24), so they are translated to v4-flash here. The API defaults
+    // thinking to ENABLED, so we always send an explicit flag — including
+    // disabled — to keep the historical fast (non-thinking) default.
+    let effectiveModel: string;
+    let effectiveThinking: { type: 'enabled' | 'disabled' };
+    switch (params.model) {
+      case 'deepseek-reasoner':
+        // "thinking" alias: always reason
+        effectiveModel = 'deepseek-v4-flash';
+        effectiveThinking = { type: 'enabled' };
+        console.error('[DeepSeek MCP] Routing: deepseek-reasoner -> deepseek-v4-flash + thinking');
+        break;
+      case 'deepseek-chat':
+        // "non-thinking" alias: fast by default, but honour an explicit thinking:enabled
+        effectiveModel = 'deepseek-v4-flash';
+        effectiveThinking = params.thinking ?? { type: 'disabled' };
+        console.error('[DeepSeek MCP] Routing: deepseek-chat -> deepseek-v4-flash');
+        break;
+      default:
+        // deepseek-v4-flash / deepseek-v4-pro: pass through, default to non-thinking
+        effectiveModel = params.model;
+        effectiveThinking = params.thinking ?? { type: 'disabled' };
     }
 
-    const isThinkingEnabled = effectiveThinking?.type === 'enabled';
+    const isThinkingEnabled = effectiveThinking.type === 'enabled';
 
-    // Filter incompatible params when thinking mode is active
+    // Warn when caller-supplied sampling params will be ignored under thinking mode
     if (isThinkingEnabled) {
-      const filtered: string[] = [];
-      for (const key of THINKING_INCOMPATIBLE_PARAMS) {
-        if (params[key] !== undefined) {
-          filtered.push(key);
-        }
-      }
+      const filtered = THINKING_INCOMPATIBLE_PARAMS.filter(
+        (key) => params[key] !== undefined
+      );
       if (filtered.length > 0) {
         console.error(
           `[DeepSeek MCP] Warning: Thinking mode active, ignoring incompatible params: ${filtered.join(', ')}`
@@ -149,18 +160,22 @@ export class DeepSeekClient {
     const requestParams: Record<string, unknown> = {
       model: effectiveModel,
       messages: params.messages as OpenAI.ChatCompletionMessageParam[],
-      temperature: isThinkingEnabled ? undefined : (params.temperature ?? 1.0),
       max_tokens: params.max_tokens,
-      top_p: isThinkingEnabled ? undefined : params.top_p,
-      frequency_penalty: isThinkingEnabled ? undefined : params.frequency_penalty,
-      presence_penalty: isThinkingEnabled ? undefined : params.presence_penalty,
       stop: params.stop,
       stream,
+      // Always explicit: the API's thinking default is enabled
+      thinking: effectiveThinking,
     };
 
-    // Pass thinking as top-level param (OpenAI SDK v6 passes unknown props to the API body)
-    if (effectiveThinking?.type === 'enabled') {
-      requestParams.thinking = effectiveThinking;
+    // Sampling params only take effect in non-thinking mode
+    if (!isThinkingEnabled) {
+      requestParams.temperature = params.temperature ?? 1.0;
+      if (params.top_p !== undefined) requestParams.top_p = params.top_p;
+    }
+
+    // reasoning_effort only applies while thinking
+    if (isThinkingEnabled && params.reasoning_effort) {
+      requestParams.reasoning_effort = params.reasoning_effort;
     }
 
     // Pass response_format for JSON mode
@@ -435,7 +450,7 @@ export class DeepSeekClient {
   async testConnection(): Promise<boolean> {
     try {
       const response = await this.createChatCompletion({
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         messages: [{ role: 'user', content: 'Hi' }],
         max_tokens: 10,
       });

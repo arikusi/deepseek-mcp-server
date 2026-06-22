@@ -60,8 +60,8 @@ describe('MCP Resources', () => {
 
       const data = JSON.parse(result.contents[0].text);
       expect(data.models).toHaveLength(2);
-      expect(data.models[0].id).toBe('deepseek-chat');
-      expect(data.models[1].id).toBe('deepseek-reasoner');
+      expect(data.models[0].id).toBe('deepseek-v4-flash');
+      expect(data.models[1].id).toBe('deepseek-v4-pro');
     });
 
     it('should include capabilities for each model', async () => {
@@ -81,7 +81,7 @@ describe('MCP Resources', () => {
       const data = JSON.parse(result.contents[0].text);
 
       expect(data.models[0].pricing_per_million_tokens).toBeDefined();
-      expect(data.models[0].pricing_per_million_tokens.output).toBe(0.42);
+      expect(data.models[0].pricing_per_million_tokens.output).toBe(0.28);
     });
   });
 

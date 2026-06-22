@@ -2,9 +2,11 @@
  * Cost Calculation Module
  * Handles pricing and cost formatting for DeepSeek API requests
  *
- * Model-aware pricing per 1M tokens (USD):
- * - deepseek-chat / deepseek-reasoner (V3.2): cache hit $0.028, cache miss $0.28, output $0.42
- * - New models can be added to MODEL_PRICING as they become available
+ * Model-aware pricing per 1M tokens (USD), from the DeepSeek V4 pricing page:
+ * - deepseek-v4-flash: cache hit $0.0028, cache miss $0.14, output $0.28
+ * - deepseek-v4-pro:   cache hit $0.003625, cache miss $0.435, output $0.87
+ * The deepseek-chat / deepseek-reasoner aliases resolve to deepseek-v4-flash,
+ * so they carry v4-flash pricing. New models can be added to MODEL_PRICING.
  */
 
 /**
@@ -16,11 +18,11 @@ export interface ModelPricing {
   output: number;
 }
 
-/** Default pricing (V3.2 unified) — used for unknown models */
+/** v4-flash pricing — also the default for unknown models (cheapest, most common) */
 export const DEFAULT_PRICING: ModelPricing = {
-  cache_hit: 0.028,
-  cache_miss: 0.28,
-  output: 0.42,
+  cache_hit: 0.0028,
+  cache_miss: 0.14,
+  output: 0.28,
 };
 
 /** Backward-compatible alias */
@@ -28,8 +30,11 @@ export const PRICING = DEFAULT_PRICING;
 
 /** Per-model pricing map. Add new models here as they become available. */
 export const MODEL_PRICING: Record<string, ModelPricing> = {
-  'deepseek-chat': { cache_hit: 0.028, cache_miss: 0.28, output: 0.42 },
-  'deepseek-reasoner': { cache_hit: 0.028, cache_miss: 0.28, output: 0.42 },
+  'deepseek-v4-flash': { cache_hit: 0.0028, cache_miss: 0.14, output: 0.28 },
+  'deepseek-v4-pro': { cache_hit: 0.003625, cache_miss: 0.435, output: 0.87 },
+  // Compatibility aliases (resolve to v4-flash on the wire)
+  'deepseek-chat': { cache_hit: 0.0028, cache_miss: 0.14, output: 0.28 },
+  'deepseek-reasoner': { cache_hit: 0.0028, cache_miss: 0.14, output: 0.28 },
 };
 
 /**

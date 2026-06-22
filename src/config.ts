@@ -17,7 +17,7 @@ const ConfigSchema = z.object({
   sessionTtlMinutes: z.number().positive().default(30),
   maxSessions: z.number().positive().default(100),
   fallbackEnabled: z.boolean().default(true),
-  defaultModel: z.string().default('deepseek-chat'),
+  defaultModel: z.string().default('deepseek-v4-flash'),
   circuitBreakerThreshold: z.number().positive().default(5),
   circuitBreakerResetTimeout: z.number().positive().default(30000),
   maxSessionMessages: z.number().positive().default(200),
@@ -60,7 +60,7 @@ export function loadConfig(): Config {
       ? parseInt(process.env.MAX_SESSIONS, 10)
       : 100,
     fallbackEnabled: process.env.FALLBACK_ENABLED !== 'false',
-    defaultModel: process.env.DEFAULT_MODEL || 'deepseek-chat',
+    defaultModel: process.env.DEFAULT_MODEL || 'deepseek-v4-flash',
     circuitBreakerThreshold: process.env.CIRCUIT_BREAKER_THRESHOLD
       ? parseInt(process.env.CIRCUIT_BREAKER_THRESHOLD, 10)
       : 5,

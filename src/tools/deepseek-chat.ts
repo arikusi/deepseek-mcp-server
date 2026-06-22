@@ -14,6 +14,7 @@ import {
   ToolDefinitionSchema,
   ToolChoiceSchema,
   ThinkingSchema,
+  ReasoningEffortSchema,
   ContentSchema,
 } from '../schemas.js';
 import type { DeepSeekClient } from '../deepseek-client.js';
@@ -45,18 +46,29 @@ export function registerChatTool(
   client: DeepSeekClient,
   sessionStore: SessionStore
 ): void {
-  // Use config's defaultModel if it's a valid model name
+  // Use config's defaultModel if it's a recognized model name, else v4-flash
   const cfg = getConfig();
-  const modelDefault: 'deepseek-chat' | 'deepseek-reasoner' =
-    cfg.defaultModel === 'deepseek-reasoner' ? 'deepseek-reasoner' : 'deepseek-chat';
+  const KNOWN_MODELS = [
+    'deepseek-v4-flash',
+    'deepseek-v4-pro',
+    'deepseek-chat',
+    'deepseek-reasoner',
+  ] as const;
+  type KnownModel = (typeof KNOWN_MODELS)[number];
+  const modelDefault: KnownModel = (KNOWN_MODELS as readonly string[]).includes(
+    cfg.defaultModel
+  )
+    ? (cfg.defaultModel as KnownModel)
+    : 'deepseek-v4-flash';
 
   server.registerTool(
     'deepseek_chat',
     {
       title: 'DeepSeek Chat Completion',
       description:
-        'Chat with DeepSeek AI models. Supports deepseek-chat for general conversations and ' +
-        'deepseek-reasoner for complex reasoning tasks with chain-of-thought explanations. ' +
+        'Chat with DeepSeek V4 models. deepseek-v4-flash (fast, economical) and deepseek-v4-pro (most capable), ' +
+        'both 1M context with optional chain-of-thought thinking mode. deepseek-chat and deepseek-reasoner are ' +
+        'accepted as backward-compatible aliases (resolve to v4-flash). ' +
         'Features: multi-turn sessions (session_id), function calling (tools parameter), thinking mode, ' +
         'JSON output mode, multimodal input (when enabled), automatic cost tracking, and model fallback with circuit breaker resilience.',
       inputSchema: {
@@ -67,10 +79,17 @@ export function registerChatTool(
             'Array of conversation messages. Each message has role (system/user/assistant/tool) and content (string or array of content parts for multimodal). Tool messages require tool_call_id.'
           ),
         model: z
-          .enum(['deepseek-chat', 'deepseek-reasoner'])
+          .enum([
+            'deepseek-v4-flash',
+            'deepseek-v4-pro',
+            'deepseek-chat',
+            'deepseek-reasoner',
+          ])
           .default(modelDefault)
           .describe(
-            'Model to use. Both run DeepSeek V3.2 (128K context). deepseek-chat: non-thinking mode (max 8K output), deepseek-reasoner: thinking mode (max 64K output)'
+            'Model to use. deepseek-v4-flash (default, fast/economical) or deepseek-v4-pro (most capable), both 1M context, up to 384K output. ' +
+            'Non-thinking by default for speed; pass thinking:{type:"enabled"} to reason. ' +
+            'Aliases: deepseek-chat -> v4-flash non-thinking, deepseek-reasoner -> v4-flash thinking.'
           ),
         temperature: z
           .number()
@@ -81,9 +100,9 @@ export function registerChatTool(
         max_tokens: z
           .number()
           .min(1)
-          .max(65536)
+          .max(384000)
           .optional()
-          .describe('Maximum tokens to generate. deepseek-chat: max 8192, deepseek-reasoner: max 65536'),
+          .describe('Maximum tokens to generate. V4 models support up to 384000 output tokens.'),
         stream: z
           .boolean()
           .optional()
@@ -102,7 +121,10 @@ export function registerChatTool(
           'Controls which tool the model calls. "auto" (default), "none", "required", or {type:"function",function:{name:"..."}}'
         ),
         thinking: ThinkingSchema.describe(
-          'Enable thinking mode. When enabled, temperature/top_p/frequency_penalty/presence_penalty are automatically ignored. Use {type: "enabled"} to activate.'
+          'Toggle chain-of-thought thinking mode. Use {type: "enabled"} to reason, {type: "disabled"} for a fast direct answer (the default here). When enabled, temperature/top_p are ignored.'
+        ),
+        reasoning_effort: ReasoningEffortSchema.describe(
+          'Reasoning effort while thinking mode is active: "high" (default) or "max". Only applies when thinking is enabled.'
         ),
         json_mode: z
           .boolean()
@@ -142,6 +164,8 @@ export function registerChatTool(
             })
           )
           .optional(),
+        cost_usd: z.number().optional(),
+        routed_from: z.string().optional(),
         session_id: z.string().optional(),
       },
     },
@@ -172,20 +196,6 @@ export function registerChatTool(
           if (!hasJsonWord) {
             console.error(
               '[DeepSeek MCP] Warning: json_mode enabled but no "json" word found in messages. Results may be unreliable.'
-            );
-          }
-        }
-
-        // Model-aware max_tokens warnings
-        if (validated.max_tokens) {
-          if (validated.model === 'deepseek-chat' && validated.max_tokens > 8192) {
-            console.error(
-              `[DeepSeek MCP] Warning: deepseek-chat max output is 8192 tokens, requested ${validated.max_tokens}. API may truncate.`
-            );
-          }
-          if (validated.model === 'deepseek-reasoner' && validated.max_tokens > 65536) {
-            console.error(
-              `[DeepSeek MCP] Warning: deepseek-reasoner max output is 65536 tokens, requested ${validated.max_tokens}. API may truncate.`
             );
           }
         }
@@ -221,6 +231,7 @@ export function registerChatTool(
           tools: validated.tools,
           tool_choice: validated.tool_choice,
           thinking: validated.thinking,
+          reasoning_effort: validated.reasoning_effort,
           response_format: validated.json_mode
             ? ({ type: 'json_object' } as const)
             : undefined,
@@ -287,7 +298,7 @@ export function registerChatTool(
           responseText += `- **Model:** ${response.model}\n`;
           responseText += `- **Cost:** ${formatCost(costBreakdown)}`;
           if (isReasonerRouted) {
-            responseText += `\n- **Routed:** reasoner -> chat + thinking`;
+            responseText += `\n- **Routed:** deepseek-reasoner -> deepseek-v4-flash + thinking`;
           }
           if (response.tool_calls?.length) {
             responseText += `\n- **Tool Calls:** ${response.tool_calls.length}`;

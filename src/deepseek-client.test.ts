@@ -323,13 +323,11 @@ describe('DeepSeekClient', () => {
         top_p: 0.9,
       });
 
-      // temperature and top_p should be undefined in the call
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          temperature: undefined,
-          top_p: undefined,
-        })
-      );
+      // temperature and top_p are not sent while thinking mode is active
+      const callArgs = mockCreate.mock.calls[0][0];
+      expect(callArgs.temperature).toBeUndefined();
+      expect(callArgs.top_p).toBeUndefined();
+      expect(callArgs.thinking).toEqual({ type: 'enabled' });
 
       mockError.mockRestore();
     });
@@ -626,7 +624,7 @@ describe('DeepSeekClient', () => {
       expect(response.content).toBe('Fallback response');
       expect(response.fallback).toBeDefined();
       expect(response.fallback!.originalModel).toBe('deepseek-chat');
-      expect(response.fallback!.fallbackModel).toBe('deepseek-reasoner');
+      expect(response.fallback!.fallbackModel).toBe('deepseek-v4-pro');
       expect(response.fallback!.reason).toContain('429');
       mockError.mockRestore();
     });
@@ -683,8 +681,8 @@ describe('DeepSeekClient', () => {
     });
   });
 
-  describe('reasoner to chat+thinking routing', () => {
-    it('should convert deepseek-reasoner to deepseek-chat with thinking enabled', async () => {
+  describe('model alias resolution (V4)', () => {
+    it('should resolve deepseek-reasoner to deepseek-v4-flash with thinking enabled', async () => {
       mockCreate.mockResolvedValue({
         choices: [
           {
@@ -692,7 +690,7 @@ describe('DeepSeekClient', () => {
             finish_reason: 'stop',
           },
         ],
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
 
@@ -705,14 +703,14 @@ describe('DeepSeekClient', () => {
 
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'deepseek-chat',
+          model: 'deepseek-v4-flash',
           thinking: { type: 'enabled' },
         })
       );
       mockError.mockRestore();
     });
 
-    it('should filter sampling params when reasoner is selected', async () => {
+    it('should ignore sampling params when reasoner (thinking) is selected', async () => {
       mockCreate.mockResolvedValue({
         choices: [
           {
@@ -720,7 +718,7 @@ describe('DeepSeekClient', () => {
             finish_reason: 'stop',
           },
         ],
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
 
@@ -731,19 +729,13 @@ describe('DeepSeekClient', () => {
         messages: [{ role: 'user', content: 'Think' }],
         temperature: 0.5,
         top_p: 0.9,
-        frequency_penalty: 0.1,
-        presence_penalty: 0.2,
       });
 
-      expect(mockCreate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          model: 'deepseek-chat',
-          temperature: undefined,
-          top_p: undefined,
-          frequency_penalty: undefined,
-          presence_penalty: undefined,
-        })
-      );
+      const callArgs = mockCreate.mock.calls[0][0];
+      expect(callArgs.model).toBe('deepseek-v4-flash');
+      expect(callArgs.thinking).toEqual({ type: 'enabled' });
+      expect(callArgs.temperature).toBeUndefined();
+      expect(callArgs.top_p).toBeUndefined();
       mockError.mockRestore();
     });
 
@@ -764,7 +756,7 @@ describe('DeepSeekClient', () => {
             finish_reason: 'tool_calls',
           },
         ],
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
 
@@ -781,10 +773,10 @@ describe('DeepSeekClient', () => {
         ],
       });
 
-      // Should route to chat + thinking with tools
+      // Should route to v4-flash + thinking with tools
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'deepseek-chat',
+          model: 'deepseek-v4-flash',
           thinking: { type: 'enabled' },
           tools: expect.any(Array),
         })
@@ -794,7 +786,7 @@ describe('DeepSeekClient', () => {
       mockError.mockRestore();
     });
 
-    it('should not route deepseek-chat without thinking', async () => {
+    it('should resolve deepseek-chat to v4-flash with thinking disabled by default', async () => {
       mockCreate.mockResolvedValue({
         choices: [
           {
@@ -802,28 +794,29 @@ describe('DeepSeekClient', () => {
             finish_reason: 'stop',
           },
         ],
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
       });
 
+      const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
       const client = new DeepSeekClient();
       await client.createChatCompletion({
         model: 'deepseek-chat',
         messages: [{ role: 'user', content: 'Hi' }],
       });
 
+      // chat alias -> v4-flash, non-thinking (explicit disabled to override API default)
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'deepseek-chat',
+          model: 'deepseek-v4-flash',
           temperature: 1.0,
+          thinking: { type: 'disabled' },
         })
       );
-      // Should NOT have thinking property
-      const callArgs = mockCreate.mock.calls[0][0];
-      expect(callArgs.thinking).toBeUndefined();
+      mockError.mockRestore();
     });
 
-    it('should handle deepseek-chat with explicit thinking (no routing needed)', async () => {
+    it('should honour explicit thinking:enabled on deepseek-chat', async () => {
       mockCreate.mockResolvedValue({
         choices: [
           {
@@ -831,7 +824,7 @@ describe('DeepSeekClient', () => {
             finish_reason: 'stop',
           },
         ],
-        model: 'deepseek-chat',
+        model: 'deepseek-v4-flash',
         usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 },
       });
 
@@ -844,14 +837,66 @@ describe('DeepSeekClient', () => {
         temperature: 0.5,
       });
 
+      const callArgs = mockCreate.mock.calls[0][0];
+      expect(callArgs.model).toBe('deepseek-v4-flash');
+      expect(callArgs.thinking).toEqual({ type: 'enabled' });
+      expect(callArgs.temperature).toBeUndefined();
+      mockError.mockRestore();
+    });
+
+    it('should pass deepseek-v4-pro through unchanged, non-thinking by default', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: { content: 'Pro answer' },
+            finish_reason: 'stop',
+          },
+        ],
+        model: 'deepseek-v4-pro',
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      });
+
+      const client = new DeepSeekClient();
+      await client.createChatCompletion({
+        model: 'deepseek-v4-pro',
+        messages: [{ role: 'user', content: 'Hi' }],
+      });
+
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'deepseek-chat',
-          temperature: undefined,
-          thinking: { type: 'enabled' },
+          model: 'deepseek-v4-pro',
+          thinking: { type: 'disabled' },
         })
       );
-      mockError.mockRestore();
+    });
+
+    it('should enable thinking on v4-pro when requested with reasoning_effort', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [
+          {
+            message: { content: 'Pro answer', reasoning_content: 'CoT' },
+            finish_reason: 'stop',
+          },
+        ],
+        model: 'deepseek-v4-pro',
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      });
+
+      const client = new DeepSeekClient();
+      await client.createChatCompletion({
+        model: 'deepseek-v4-pro',
+        messages: [{ role: 'user', content: 'Hard problem' }],
+        thinking: { type: 'enabled' },
+        reasoning_effort: 'max',
+      });
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'deepseek-v4-pro',
+          thinking: { type: 'enabled' },
+          reasoning_effort: 'max',
+        })
+      );
     });
   });
 

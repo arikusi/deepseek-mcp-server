@@ -41,15 +41,27 @@ export const ThinkingSchema = z
   .object({ type: z.enum(['enabled', 'disabled']) })
   .optional();
 
+export const ReasoningEffortSchema = z.enum(['high', 'max']).optional();
+
+/** Accepted model identifiers. v4-flash/v4-pro are the live API models;
+ *  deepseek-chat/deepseek-reasoner are compatibility aliases resolved internally. */
+export const ModelSchema = z
+  .enum([
+    'deepseek-v4-flash',
+    'deepseek-v4-pro',
+    'deepseek-chat',
+    'deepseek-reasoner',
+  ])
+  .default('deepseek-v4-flash');
+
 export const ChatInputSchema = z.object({
   messages: z.array(MessageSchema).min(1),
-  model: z
-    .enum(['deepseek-chat', 'deepseek-reasoner'])
-    .default('deepseek-chat'),
+  model: ModelSchema,
   temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().min(1).max(65536).optional(),
+  max_tokens: z.number().min(1).max(384000).optional(),
   stream: z.boolean().optional().default(false),
   thinking: ThinkingSchema,
+  reasoning_effort: ReasoningEffortSchema,
   json_mode: z.boolean().optional(),
 });
 
@@ -85,15 +97,14 @@ export const ExtendedMessageSchema = z.object({
 
 export const ChatInputWithToolsSchema = z.object({
   messages: z.array(ExtendedMessageSchema).min(1),
-  model: z
-    .enum(['deepseek-chat', 'deepseek-reasoner'])
-    .default('deepseek-chat'),
+  model: ModelSchema,
   temperature: z.number().min(0).max(2).optional(),
-  max_tokens: z.number().min(1).max(65536).optional(),
+  max_tokens: z.number().min(1).max(384000).optional(),
   stream: z.boolean().optional().default(false),
   tools: z.array(ToolDefinitionSchema).max(128).optional(),
   tool_choice: ToolChoiceSchema.optional(),
   thinking: ThinkingSchema,
+  reasoning_effort: ReasoningEffortSchema,
   json_mode: z.boolean().optional(),
   session_id: z.string().optional(),
 });

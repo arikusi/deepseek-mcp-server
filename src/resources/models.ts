@@ -7,51 +7,59 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getPricing } from '../cost.js';
 
 function buildModelsData() {
-  const chatPricing = getPricing('deepseek-chat');
-  const reasonerPricing = getPricing('deepseek-reasoner');
+  const flashPricing = getPricing('deepseek-v4-flash');
+  const proPricing = getPricing('deepseek-v4-pro');
 
   return {
     models: [
       {
-        id: 'deepseek-chat',
-        name: 'DeepSeek Chat (V3.2)',
-        description: 'General-purpose chat model with function calling support',
-        context_length: 131072,
-        max_output_tokens: 8192,
+        id: 'deepseek-v4-flash',
+        name: 'DeepSeek V4 Flash',
+        description:
+          'Fast, economical V4 model. Thinking mode supported (defaults to non-thinking here for speed; pass thinking:{type:"enabled"} to reason).',
+        context_length: 1048576,
+        max_output_tokens: 384000,
         capabilities: [
           'chat',
+          'reasoning',
+          'chain_of_thought',
           'function_calling',
           'json_mode',
           'thinking_mode',
         ],
         pricing_per_million_tokens: {
-          input_cache_hit: chatPricing.cache_hit,
-          input_cache_miss: chatPricing.cache_miss,
-          output: chatPricing.output,
+          input_cache_hit: flashPricing.cache_hit,
+          input_cache_miss: flashPricing.cache_miss,
+          output: flashPricing.output,
         },
       },
       {
-        id: 'deepseek-reasoner',
-        name: 'DeepSeek Reasoner (V3.2)',
+        id: 'deepseek-v4-pro',
+        name: 'DeepSeek V4 Pro',
         description:
-          'Advanced reasoning model with chain-of-thought. Transparently routed through chat + thinking mode for full feature support including function calling.',
-        context_length: 131072,
-        max_output_tokens: 65536,
+          'Most capable V4 model, performance rivaling top closed-source models. Thinking mode supported (non-thinking by default here; enable explicitly to reason).',
+        context_length: 1048576,
+        max_output_tokens: 384000,
         capabilities: [
           'chat',
           'reasoning',
           'chain_of_thought',
-          'json_mode',
           'function_calling',
+          'json_mode',
+          'thinking_mode',
         ],
         pricing_per_million_tokens: {
-          input_cache_hit: reasonerPricing.cache_hit,
-          input_cache_miss: reasonerPricing.cache_miss,
-          output: reasonerPricing.output,
+          input_cache_hit: proPricing.cache_hit,
+          input_cache_miss: proPricing.cache_miss,
+          output: proPricing.output,
         },
       },
-      // New models will be added here when officially available in the API
     ],
+    aliases: {
+      'deepseek-chat': 'deepseek-v4-flash (non-thinking)',
+      'deepseek-reasoner': 'deepseek-v4-flash (thinking)',
+      note: 'The deepseek-chat and deepseek-reasoner names are accepted for backward compatibility and resolve to deepseek-v4-flash. The DeepSeek API retires these names on 2026-07-24.',
+    },
   };
 }
 
