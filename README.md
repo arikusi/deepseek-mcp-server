@@ -5,7 +5,7 @@
 <h1 align="center">DeepSeek MCP Server</h1>
 
 <p align="center">
-  MCP server for DeepSeek AI with chat, reasoning, multi-turn sessions, function calling, thinking mode, and cost tracking.
+  MCP server for DeepSeek V4 (v4-flash and v4-pro, 1M context) with multi-turn sessions, function calling, thinking mode, and cost tracking.
 </p>
 
 <p align="center">
@@ -14,6 +14,7 @@
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/node/v/@arikusi/deepseek-mcp-server.svg" alt="Node.js Version" /></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-6.0-blue.svg" alt="TypeScript" /></a>
+  <a href="https://api-docs.deepseek.com"><img src="https://img.shields.io/badge/DeepSeek-V4-7c3aed.svg" alt="DeepSeek V4" /></a>
   <a href="https://github.com/arikusi/deepseek-mcp-server/actions"><img src="https://github.com/arikusi/deepseek-mcp-server/workflows/CI/badge.svg" alt="Build Status" /></a>
 </p>
 
@@ -33,6 +34,8 @@
     <img width="380" height="200" src="https://glama.ai/mcp/servers/arikusi/deepseek-mcp-server/badge" alt="Glama Badge" />
   </a>
 </p>
+
+> **v2.0.0 runs on DeepSeek V4.** Two models, `deepseek-v4-flash` (fast and economical) and `deepseek-v4-pro` (top capability), both with a 1M-token context window and optional chain-of-thought thinking. Existing `deepseek-chat` and `deepseek-reasoner` setups keep working as aliases, so upgrading is drop-in.
 
 ## Quick Start
 
@@ -213,13 +216,13 @@ Chat with DeepSeek AI models with automatic cost tracking and function calling s
       "content": "Explain the theory of relativity in simple terms"
     }
   ],
-  "model": "deepseek-chat",
+  "model": "deepseek-v4-flash",
   "temperature": 0.7,
   "max_tokens": 1000
 }
 ```
 
-**DeepSeek Reasoner Example:**
+**Reasoning Example (`deepseek-reasoner` alias, routes to v4-flash + thinking):**
 
 ```json
 {
@@ -233,7 +236,22 @@ Chat with DeepSeek AI models with automatic cost tracking and function calling s
 }
 ```
 
-The reasoner model will show its thinking process in `<thinking>` tags followed by the final answer.
+Thinking mode returns the chain-of-thought in `<thinking>` tags followed by the final answer.
+
+**DeepSeek V4 Pro Example (hardest tasks):**
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Prove that the square root of 2 is irrational."
+    }
+  ],
+  "model": "deepseek-v4-pro",
+  "thinking": { "type": "enabled" }
+}
+```
 
 **Function Calling Example:**
 
@@ -280,12 +298,12 @@ When the model decides to call a function, the response includes `tool_calls` wi
       "content": "Analyze the time complexity of quicksort"
     }
   ],
-  "model": "deepseek-chat",
+  "model": "deepseek-v4-flash",
   "thinking": { "type": "enabled" }
 }
 ```
 
-When thinking mode is enabled, `temperature`, `top_p`, `frequency_penalty`, and `presence_penalty` are automatically ignored.
+When thinking mode is enabled, `temperature` and `top_p` are automatically ignored.
 
 **JSON Output Mode Example:**
 
@@ -297,12 +315,12 @@ When thinking mode is enabled, `temperature`, `top_p`, `frequency_penalty`, and 
       "content": "Return a json object with name, age, and city fields for a sample user"
     }
   ],
-  "model": "deepseek-chat",
+  "model": "deepseek-v4-flash",
   "json_mode": true
 }
 ```
 
-JSON mode ensures the model outputs valid JSON. Include the word "json" in your prompt for best results. Supported by both `deepseek-chat` and `deepseek-reasoner`.
+JSON mode ensures the model outputs valid JSON. Include the word "json" in your prompt for best results. Supported by all models.
 
 **Multi-Turn Session Example:**
 
