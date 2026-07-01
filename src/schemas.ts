@@ -109,6 +109,20 @@ export const ChatInputWithToolsSchema = z.object({
   session_id: z.string().optional(),
 });
 
+// ─── FIM (Fill-in-the-Middle) Schemas ──────────────────────────
+
+/** Max output tokens for a FIM completion (DeepSeek Beta endpoint cap). */
+export const FIM_MAX_TOKENS = 4096;
+
+export const FimInputSchema = z.object({
+  prompt: z.string().min(1),
+  suffix: z.string().optional(),
+  model: ModelSchema,
+  max_tokens: z.number().min(1).max(FIM_MAX_TOKENS).optional(),
+  temperature: z.number().min(0).max(2).optional(),
+  stop: z.union([z.string(), z.array(z.string()).max(16)]).optional(),
+});
+
 // ─── Session Management Schemas ────────────────────────────────
 
 export const SessionActionSchema = z.object({

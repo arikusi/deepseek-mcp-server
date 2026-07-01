@@ -94,7 +94,7 @@ async function main() {
 
     console.error('[DeepSeek MCP] Server running on stdio');
     console.error(
-      '[DeepSeek MCP] Available tools: deepseek_chat (sessions, fallback), deepseek_sessions'
+      '[DeepSeek MCP] Available tools: deepseek_chat (sessions, fallback), deepseek_fim (fill-in-the-middle), deepseek_sessions'
     );
     console.error('[DeepSeek MCP] Available prompts: 12 reasoning templates');
     console.error('[DeepSeek MCP] Available resources: deepseek://models, deepseek://config, deepseek://usage');

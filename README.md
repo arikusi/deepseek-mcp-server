@@ -94,6 +94,7 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 - **Thinking Mode**: Enable thinking on deepseek-chat with `thinking: {type: "enabled"}`
 - **JSON Output Mode**: Structured JSON responses with `json_mode: true`
 - **Function Calling**: OpenAI-compatible tool use with up to 128 tool definitions
+- **Fill-in-the-Middle (FIM)**: Code and content completion between a prefix and suffix via the `deepseek_fim` tool
 - **Cache-Aware Cost Tracking**: Automatic cost calculation with cache hit/miss breakdown
 - **Session Management Tool**: List, delete, and clear sessions via `deepseek_sessions` tool
 - **Configurable**: Environment-based configuration with validation
@@ -145,7 +146,7 @@ npm run build
 
 ## Usage
 
-Once configured, your MCP client will have access to `deepseek_chat` and `deepseek_sessions` tools, plus 3 MCP resources.
+Once configured, your MCP client will have access to `deepseek_chat`, `deepseek_fim`, and `deepseek_sessions` tools, plus 3 MCP resources.
 
 **Example prompts:**
 ```
@@ -338,6 +339,39 @@ JSON mode ensures the model outputs valid JSON. Include the word "json" in your 
 
 Use the same `session_id` across requests to maintain conversation context. Messages are stored in memory and prepended automatically. In HTTP transport each connected MCP session has its own isolated session store — a `session_id` created by one HTTP client is not visible to another (see HTTP Transport below).
 
+### `deepseek_fim`
+
+Fill-in-the-Middle completion. You give a `prompt` (the prefix) and an optional `suffix`, and the model completes the text in between. It is built for code completion and content infilling rather than conversation. FIM runs on DeepSeek's Beta endpoint in non-thinking mode, and the API caps output at 4096 tokens.
+
+**Parameters:**
+
+- `prompt` (required): The prefix text before the gap. For code completion, this is the code up to the cursor.
+- `suffix` (optional): The text after the gap. The model fills the space between `prompt` and `suffix`.
+- `model` (optional): "deepseek-v4-flash" (default) or "deepseek-v4-pro". The "deepseek-chat" and "deepseek-reasoner" aliases resolve to v4-flash (FIM has no thinking mode).
+- `max_tokens` (optional): Maximum tokens to generate, up to 4096.
+- `temperature` (optional): 0-2, controls randomness (default: 1.0).
+- `stop` (optional): A stop string or an array of up to 16 stop strings.
+
+**Response includes:**
+- The completion text
+- Request information (tokens, model, cost in USD)
+- Structured data with `text`, `usage`, `finish_reason`, and `cost_usd` fields
+
+**Example (code completion):**
+
+```json
+{
+  "prompt": "def fib(n):\n    if n < 2:\n        return n\n    return ",
+  "suffix": "\n\nprint(fib(10))",
+  "model": "deepseek-v4-flash",
+  "max_tokens": 64
+}
+```
+
+The model returns the missing middle, e.g. `fib(n-1) + fib(n-2)`, using both the prefix and the suffix as context.
+
+> FIM is available on the npm/stdio server. The hosted worker endpoint (`deepseek-mcp.tahirl.com`) exposes `deepseek_chat` only for now.
+
 ### `deepseek_sessions`
 
 Manage conversation sessions.
@@ -484,6 +518,7 @@ deepseek-mcp-server/
 │   ├── transport-http.ts     # Streamable HTTP transport (Express)
 │   ├── tools/
 │   │   ├── deepseek-chat.ts  # deepseek_chat tool (sessions + fallback)
+│   │   ├── deepseek-fim.ts   # deepseek_fim tool (fill-in-the-middle)
 │   │   ├── deepseek-sessions.ts # deepseek_sessions tool
 │   │   └── index.ts          # Tool registration aggregator
 │   ├── resources/

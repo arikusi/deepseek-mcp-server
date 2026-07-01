@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { loadConfig, resetConfig } from './config.js';
 
-const { mockCreate } = vi.hoisted(() => ({
+const { mockCreate, mockFimCreate } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
+  mockFimCreate: vi.fn(),
 }));
 
 vi.mock('openai', () => ({
@@ -11,6 +12,9 @@ vi.mock('openai', () => ({
       completions: {
         create: mockCreate,
       },
+    };
+    completions = {
+      create: mockFimCreate,
     };
   },
 }));
@@ -24,6 +28,7 @@ describe('DeepSeekClient', () => {
     process.env.DEEPSEEK_API_KEY = 'test-key';
     loadConfig();
     mockCreate.mockReset();
+    mockFimCreate.mockReset();
   });
 
   it('should create client successfully', () => {
@@ -929,6 +934,100 @@ describe('DeepSeekClient', () => {
       expect(result).toBe(false);
 
       mockError.mockRestore();
+    });
+  });
+
+  describe('createFimCompletion', () => {
+    function rawFim(text: string, model = 'deepseek-v4-flash', usage?: object) {
+      return {
+        id: 'cmpl-1',
+        model,
+        choices: [{ text, finish_reason: 'stop', index: 0 }],
+        usage: usage ?? {
+          prompt_tokens: 8,
+          completion_tokens: 4,
+          total_tokens: 12,
+        },
+      };
+    }
+
+    it('should return a FIM completion via the beta endpoint', async () => {
+      mockFimCreate.mockResolvedValue(rawFim('    return n * n'));
+      const client = new DeepSeekClient();
+      const res = await client.createFimCompletion({
+        model: 'deepseek-v4-flash',
+        prompt: 'def square(n):\n',
+        suffix: '\n',
+      });
+
+      expect(res.text).toBe('    return n * n');
+      expect(res.model).toBe('deepseek-v4-flash');
+      expect(res.usage.total_tokens).toBe(12);
+      expect(res.finish_reason).toBe('stop');
+      // Chat endpoint must not be touched for FIM
+      expect(mockCreate).not.toHaveBeenCalled();
+
+      const sent = mockFimCreate.mock.calls[0][0];
+      expect(sent.prompt).toBe('def square(n):\n');
+      expect(sent.suffix).toBe('\n');
+      expect(sent.stream).toBe(false);
+      // Non-thinking endpoint: no messages, no thinking flag
+      expect(sent.messages).toBeUndefined();
+      expect(sent.thinking).toBeUndefined();
+    });
+
+    it('should resolve deepseek-reasoner alias to v4-flash on the wire', async () => {
+      mockFimCreate.mockResolvedValue(rawFim('x'));
+      const client = new DeepSeekClient();
+      await client.createFimCompletion({
+        model: 'deepseek-reasoner',
+        prompt: 'hi',
+      });
+      expect(mockFimCreate.mock.calls[0][0].model).toBe('deepseek-v4-flash');
+    });
+
+    it('should preserve cache token fields in usage', async () => {
+      mockFimCreate.mockResolvedValue(
+        rawFim('y', 'deepseek-v4-flash', {
+          prompt_tokens: 100,
+          completion_tokens: 10,
+          total_tokens: 110,
+          prompt_cache_hit_tokens: 64,
+          prompt_cache_miss_tokens: 36,
+        })
+      );
+      const client = new DeepSeekClient();
+      const res = await client.createFimCompletion({
+        model: 'deepseek-v4-flash',
+        prompt: 'abc',
+      });
+      expect(res.usage.prompt_cache_hit_tokens).toBe(64);
+      expect(res.usage.prompt_cache_miss_tokens).toBe(36);
+    });
+
+    it('should fall back to the alternate model on a retryable error', async () => {
+      mockFimCreate
+        .mockRejectedValueOnce(new Error('429 rate limit'))
+        .mockResolvedValueOnce(rawFim('fallback text', 'deepseek-v4-pro'));
+
+      const client = new DeepSeekClient();
+      const res = await client.createFimCompletion({
+        model: 'deepseek-v4-flash',
+        prompt: 'x',
+      });
+
+      expect(res.text).toBe('fallback text');
+      expect(res.fallback?.originalModel).toBe('deepseek-v4-flash');
+      expect(res.fallback?.fallbackModel).toBe('deepseek-v4-pro');
+      expect(mockFimCreate.mock.calls[1][0].model).toBe('deepseek-v4-pro');
+    });
+
+    it('should throw when both primary and fallback fail', async () => {
+      mockFimCreate.mockRejectedValue(new Error('503 service unavailable'));
+      const client = new DeepSeekClient();
+      await expect(
+        client.createFimCompletion({ model: 'deepseek-v4-flash', prompt: 'x' })
+      ).rejects.toThrow(/All models failed \(FIM\)/);
     });
   });
 });

@@ -12,6 +12,8 @@ import {
   ContentSchema,
   TextContentPartSchema,
   ImageContentPartSchema,
+  FimInputSchema,
+  FIM_MAX_TOKENS,
 } from './schemas.js';
 import { getTextContent } from './types.js';
 
@@ -527,6 +529,47 @@ describe('schemas', () => {
       const result = ChatInputWithToolsSchema.safeParse({
         messages: [{ role: 'user', content: 'Hi' }],
         max_tokens: 65536,
+      });
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('FimInputSchema', () => {
+    it('should accept a minimal prompt-only input', () => {
+      const result = FimInputSchema.safeParse({ prompt: 'def f():' });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.model).toBe('deepseek-v4-flash');
+      }
+    });
+
+    it('should accept prompt + suffix + stop', () => {
+      const result = FimInputSchema.safeParse({
+        prompt: 'def f():',
+        suffix: '    return x',
+        stop: ['\n\n'],
+        temperature: 0.2,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject an empty prompt', () => {
+      const result = FimInputSchema.safeParse({ prompt: '' });
+      expect(result.success).toBe(false);
+    });
+
+    it(`should reject max_tokens above the FIM cap (${FIM_MAX_TOKENS})`, () => {
+      const result = FimInputSchema.safeParse({
+        prompt: 'x',
+        max_tokens: FIM_MAX_TOKENS + 1,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it(`should accept max_tokens at the FIM cap (${FIM_MAX_TOKENS})`, () => {
+      const result = FimInputSchema.safeParse({
+        prompt: 'x',
+        max_tokens: FIM_MAX_TOKENS,
       });
       expect(result.success).toBe(true);
     });

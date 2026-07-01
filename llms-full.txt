@@ -190,6 +190,23 @@ Include the word "json" in your prompt for best results. Supported by both model
 }
 ```
 
+## Tool: deepseek_fim
+
+Fill-in-the-Middle (FIM) completion for code and content infilling. Provide a prefix (`prompt`) and an optional `suffix`; the model completes the text between them. Runs on DeepSeek's Beta completions endpoint in non-thinking mode; output is capped at 4096 tokens. Same cache-aware cost tracking and model fallback (v4-flash <-> v4-pro) as deepseek_chat. The deepseek-chat / deepseek-reasoner aliases resolve to v4-flash (FIM has no thinking mode).
+
+Parameters: `prompt` (required), `suffix`, `model` (default deepseek-v4-flash), `max_tokens` (<= 4096), `temperature`, `stop` (string or array of up to 16).
+
+```json
+{
+  "prompt": "def fib(n):\n    if n < 2:\n        return n\n    return ",
+  "suffix": "\n\nprint(fib(10))",
+  "model": "deepseek-v4-flash",
+  "max_tokens": 64
+}
+```
+
+Response structuredContent: `text`, `model`, `usage`, `finish_reason`, `cost_usd` (and `routed_from` when an alias was used). FIM is available on the npm/stdio server; the hosted worker endpoint exposes deepseek_chat only.
+
 ## Tool: deepseek_sessions
 
 Manage conversation sessions:
@@ -338,6 +355,7 @@ src/
   transport-http.ts     # Streamable HTTP transport (Express)
   tools/
     deepseek-chat.ts    # deepseek_chat tool (sessions + fallback)
+    deepseek-fim.ts     # deepseek_fim tool (fill-in-the-middle)
     deepseek-sessions.ts # deepseek_sessions tool
     index.ts            # Tool registration aggregator
   resources/

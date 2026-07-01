@@ -181,6 +181,60 @@ export interface DeepSeekChatInput {
   json_mode?: boolean;
 }
 
+// ─── FIM (Fill-in-the-Middle) Types ────────────────────────────
+
+/**
+ * Parameters for a FIM (Fill-in-the-Middle) completion request.
+ * FIM runs against the Beta completions endpoint (base_url + /beta) in
+ * non-thinking mode only. The model completes the text between prompt and
+ * suffix; output is capped at 4K tokens by the API.
+ */
+export interface FimCompletionParams {
+  model: DeepSeekModel;
+  prompt: string;
+  suffix?: string;
+  max_tokens?: number;
+  temperature?: number;
+  stop?: string | string[];
+}
+
+/**
+ * Response from a FIM completion.
+ */
+export interface FimCompletionResponse {
+  text: string;
+  model: string;
+  usage: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    prompt_cache_hit_tokens?: number;
+    prompt_cache_miss_tokens?: number;
+  };
+  finish_reason: string;
+}
+
+/**
+ * Raw response from the DeepSeek Beta /completions endpoint (OpenAI legacy
+ * completions shape: choices carry `text`, not `message`).
+ */
+export interface DeepSeekRawCompletionResponse {
+  id: string;
+  model: string;
+  choices: Array<{
+    text: string;
+    finish_reason: string | null;
+    index: number;
+  }>;
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    prompt_cache_hit_tokens?: number;
+    prompt_cache_miss_tokens?: number;
+  };
+}
+
 /**
  * Error response structure
  */

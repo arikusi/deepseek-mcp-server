@@ -35,14 +35,15 @@ describe('registerAllTools', () => {
     resetConfig();
   });
 
-  it('should register exactly 2 tools', () => {
+  it('should register exactly 3 tools', () => {
     registerAllTools(mockServer as any, createMockClient(), store);
-    expect(mockServer.registerTool).toHaveBeenCalledTimes(2);
+    expect(mockServer.registerTool).toHaveBeenCalledTimes(3);
   });
 
-  it('should register deepseek_chat and deepseek_sessions', () => {
+  it('should register deepseek_chat, deepseek_fim and deepseek_sessions', () => {
     registerAllTools(mockServer as any, createMockClient(), store);
     expect(mockServer.tools.has('deepseek_chat')).toBe(true);
+    expect(mockServer.tools.has('deepseek_fim')).toBe(true);
     expect(mockServer.tools.has('deepseek_sessions')).toBe(true);
   });
 });

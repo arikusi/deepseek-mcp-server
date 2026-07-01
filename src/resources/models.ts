@@ -26,6 +26,7 @@ function buildModelsData() {
           'function_calling',
           'json_mode',
           'thinking_mode',
+          'fim',
         ],
         pricing_per_million_tokens: {
           input_cache_hit: flashPricing.cache_hit,
@@ -47,6 +48,7 @@ function buildModelsData() {
           'function_calling',
           'json_mode',
           'thinking_mode',
+          'fim',
         ],
         pricing_per_million_tokens: {
           input_cache_hit: proPricing.cache_hit,

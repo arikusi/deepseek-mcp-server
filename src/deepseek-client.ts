@@ -17,8 +17,11 @@ import type {
   ChatCompletionResponse,
   CircuitBreakerStatus,
   DeepSeekRawResponse,
+  DeepSeekRawCompletionResponse,
   DeepSeekStreamChunk,
   FallbackInfo,
+  FimCompletionParams,
+  FimCompletionResponse,
   ToolCall,
 } from './types.js';
 import { hasReasoningContent, getErrorMessage } from './types.js';
@@ -66,14 +69,35 @@ function isRetryableError(error: unknown): boolean {
   return false;
 }
 
+/**
+ * Resolve a user-facing model to the wire model the API accepts.
+ * FIM has no thinking mode, so both compatibility aliases collapse to
+ * v4-flash; the live v4 models pass through unchanged.
+ */
+function resolveFimModel(model: string): string {
+  if (model === 'deepseek-chat' || model === 'deepseek-reasoner') {
+    return 'deepseek-v4-flash';
+  }
+  return model;
+}
+
 export class DeepSeekClient {
   private client: OpenAI;
+  private betaClient: OpenAI | null = null;
+  private betaBaseUrl: string;
+  private apiKey: string;
+  private requestTimeout: number;
+  private maxRetries: number;
   private circuitBreakers = new Map<string, CircuitBreaker>();
   private cbThreshold: number;
   private cbResetTimeout: number;
 
   constructor() {
     const config = getConfig();
+
+    this.apiKey = config.apiKey;
+    this.requestTimeout = config.requestTimeout;
+    this.maxRetries = config.maxRetries;
 
     this.client = new OpenAI({
       apiKey: config.apiKey,
@@ -82,8 +106,28 @@ export class DeepSeekClient {
       maxRetries: config.maxRetries,
     });
 
+    // Beta endpoint (FIM lives here). Normalise any trailing slash so we
+    // never produce ".../beta" -> ".../beta" duplication or "//beta".
+    this.betaBaseUrl = config.baseUrl.replace(/\/+$/, '') + '/beta';
+
     this.cbThreshold = config.circuitBreakerThreshold;
     this.cbResetTimeout = config.circuitBreakerResetTimeout;
+  }
+
+  /**
+   * Lazily build the Beta-endpoint client. Only FIM needs it, so most
+   * sessions never pay for a second client instance.
+   */
+  private getBetaClient(): OpenAI {
+    if (!this.betaClient) {
+      this.betaClient = new OpenAI({
+        apiKey: this.apiKey,
+        baseURL: this.betaBaseUrl,
+        timeout: this.requestTimeout,
+        maxRetries: this.maxRetries,
+      });
+    }
+    return this.betaClient;
   }
 
   /**
@@ -242,6 +286,109 @@ export class DeepSeekClient {
       finish_reason: choice.finish_reason || 'stop',
       tool_calls: tool_calls?.length ? tool_calls : undefined,
     };
+  }
+
+  /**
+   * Parse a raw Beta /completions response into FimCompletionResponse.
+   */
+  private parseCompletionResponse(
+    response: DeepSeekRawCompletionResponse
+  ): FimCompletionResponse {
+    const choice = response.choices[0];
+    if (!choice) {
+      throw new ApiError('No response from DeepSeek FIM API');
+    }
+
+    return {
+      text: choice.text || '',
+      model: response.model,
+      usage: {
+        prompt_tokens: response.usage?.prompt_tokens || 0,
+        completion_tokens: response.usage?.completion_tokens || 0,
+        total_tokens: response.usage?.total_tokens || 0,
+        prompt_cache_hit_tokens: response.usage?.prompt_cache_hit_tokens,
+        prompt_cache_miss_tokens: response.usage?.prompt_cache_miss_tokens,
+      },
+      finish_reason: choice.finish_reason || 'stop',
+    };
+  }
+
+  /**
+   * Build the wire params for a FIM request.
+   */
+  private buildFimRequestParams(
+    params: FimCompletionParams
+  ): Record<string, unknown> {
+    const requestParams: Record<string, unknown> = {
+      model: resolveFimModel(params.model),
+      prompt: params.prompt,
+      stream: false,
+    };
+    if (params.suffix !== undefined) requestParams.suffix = params.suffix;
+    if (params.max_tokens !== undefined) requestParams.max_tokens = params.max_tokens;
+    if (params.temperature !== undefined) requestParams.temperature = params.temperature;
+    if (params.stop !== undefined) requestParams.stop = params.stop;
+    return requestParams;
+  }
+
+  /**
+   * Perform a single FIM call against the Beta endpoint.
+   */
+  private async fimInternal(
+    params: FimCompletionParams
+  ): Promise<FimCompletionResponse> {
+    const requestParams = this.buildFimRequestParams(params);
+    const rawResponse = await this.getBetaClient().completions.create(
+      requestParams as unknown as OpenAI.CompletionCreateParams
+    );
+    return this.parseCompletionResponse(
+      rawResponse as unknown as DeepSeekRawCompletionResponse
+    );
+  }
+
+  /**
+   * Create a FIM (Fill-in-the-Middle) completion with circuit breaker and
+   * automatic model fallback, mirroring the chat-completion resilience path.
+   */
+  async createFimCompletion(
+    params: FimCompletionParams
+  ): Promise<FimCompletionResponse & { fallback?: FallbackInfo }> {
+    const config = getConfig();
+
+    try {
+      return await this.getCircuitBreaker(params.model).execute(async () => {
+        return this.fimInternal(params);
+      });
+    } catch (error: unknown) {
+      const fallbackCandidates = FALLBACK_ORDER[params.model];
+      if (config.fallbackEnabled && isRetryableError(error) && fallbackCandidates?.length) {
+        const fallbackModel = fallbackCandidates[0];
+        const reason = getErrorMessage(error);
+        console.error(
+          `[DeepSeek MCP] FIM primary ${params.model} failed (${reason}), falling back to ${fallbackModel}`
+        );
+
+        try {
+          const fallbackParams = {
+            ...params,
+            model: fallbackModel as FimCompletionParams['model'],
+          };
+          const result = await this.fimInternal(fallbackParams);
+          return {
+            ...result,
+            fallback: { originalModel: params.model, fallbackModel, reason },
+          };
+        } catch (fallbackError: unknown) {
+          throw new FallbackExhaustedError(
+            `All models failed (FIM). Primary (${params.model}): ${reason}. Fallback (${fallbackModel}): ${getErrorMessage(fallbackError)}`,
+            [params.model, fallbackModel]
+          );
+        }
+      }
+
+      console.error('DeepSeek FIM API Error:', error);
+      this.wrapError(error, 'DeepSeek FIM API Error');
+    }
   }
 
   /**
