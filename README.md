@@ -368,9 +368,7 @@ Fill-in-the-Middle completion. You give a `prompt` (the prefix) and an optional 
 }
 ```
 
-The model returns the missing middle, e.g. `fib(n-1) + fib(n-2)`, using both the prefix and the suffix as context.
-
-> FIM is available on the npm/stdio server. The hosted worker endpoint (`deepseek-mcp.tahirl.com`) exposes `deepseek_chat` only for now.
+The model returns the missing middle, e.g. `fib(n-1) + fib(n-2)`, using both the prefix and the suffix as context. Available on both the npm/stdio server and the hosted worker endpoint.
 
 ### `deepseek_sessions`
 

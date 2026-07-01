@@ -10,11 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2.1.0] - 2026-07-01
 
 ### Added
-- **`deepseek_fim` tool: Fill-in-the-Middle completion.** Provide a `prompt` (prefix) and an optional `suffix`; the model completes the text in between. Built for code completion and content infilling. Runs against DeepSeek's Beta completions endpoint in non-thinking mode, with output capped at 4096 tokens. Supports `model`, `max_tokens`, `temperature`, and `stop`, with the same cache-aware cost tracking and model fallback (v4-flash <-> v4-pro) as `deepseek_chat`. The `deepseek-chat` / `deepseek-reasoner` aliases resolve to v4-flash since FIM has no thinking mode.
+- **`deepseek_fim` tool: Fill-in-the-Middle completion.** Provide a `prompt` (prefix) and an optional `suffix`; the model completes the text in between. Built for code completion and content infilling. Runs against DeepSeek's Beta completions endpoint in non-thinking mode, with output capped at 4096 tokens. Supports `model`, `max_tokens`, `temperature`, and `stop`, with the same cache-aware cost tracking as `deepseek_chat`. On the npm/stdio server it also reuses the circuit breaker and model fallback (v4-flash <-> v4-pro). The `deepseek-chat` / `deepseek-reasoner` aliases resolve to v4-flash since FIM has no thinking mode.
+- `deepseek_fim` is available on both the npm/stdio server and the hosted worker endpoint (`deepseek-mcp.tahirl.com`), which was bumped to 2.1.0 in step.
 - `fim` capability listed on both models in the `deepseek://models` resource.
-
-### Note
-- FIM is available on the npm/stdio server only. The hosted worker endpoint (`deepseek-mcp.tahirl.com`) still exposes `deepseek_chat` only.
 
 ## [2.0.0] - 2026-06-22
 

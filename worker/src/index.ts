@@ -10,8 +10,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { z } from 'zod';
 
-const VERSION = '2.0.0';
+const VERSION = '2.1.0';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
+const DEEPSEEK_FIM_URL = 'https://api.deepseek.com/beta/completions';
+const FIM_MAX_TOKENS = 4096;
 
 // Pricing per 1M tokens (DeepSeek V4). chat/reasoner aliases resolve to v4-flash.
 interface ModelPricing {
@@ -282,6 +284,118 @@ function createMcpServer(apiKey: string): McpServer {
     }
   );
 
+  server.tool(
+    'deepseek_fim',
+    'Fill-in-the-Middle (FIM) completion with DeepSeek V4. Provide a prompt (prefix) and an optional suffix; the model completes the text in between. Ideal for code completion and content infilling. Runs in non-thinking mode on the Beta endpoint; output is capped at 4096 tokens. Aliases deepseek-chat / deepseek-reasoner resolve to deepseek-v4-flash. Includes cost tracking.',
+    {
+      prompt: z
+        .string()
+        .min(1)
+        .describe('The prefix text before the content to generate. For code completion, this is the code up to the cursor.'),
+      suffix: z
+        .string()
+        .optional()
+        .describe('Optional suffix text after the content to generate. The model fills the gap between prompt and suffix.'),
+      model: z
+        .enum(['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'])
+        .default('deepseek-v4-flash')
+        .describe('Model to use. v4-flash (default) or v4-pro. Aliases deepseek-chat / deepseek-reasoner resolve to v4-flash. FIM is always non-thinking.'),
+      max_tokens: z
+        .number()
+        .min(1)
+        .max(FIM_MAX_TOKENS)
+        .optional()
+        .describe(`Max tokens to generate. FIM is capped at ${FIM_MAX_TOKENS} tokens.`),
+      temperature: z.number().min(0).max(2).optional().describe('Sampling temperature (0-2)'),
+      stop: z
+        .union([z.string(), z.array(z.string()).max(16)])
+        .optional()
+        .describe('Optional stop sequence(s): a single string or an array of up to 16 strings.'),
+    },
+    {
+      title: 'DeepSeek FIM',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
+    async (params) => {
+      try {
+        // Aliases collapse to v4-flash; FIM has no thinking mode.
+        const routedFrom =
+          params.model === 'deepseek-chat' || params.model === 'deepseek-reasoner'
+            ? params.model
+            : undefined;
+        const model = routedFrom ? 'deepseek-v4-flash' : params.model;
+
+        const body: Record<string, unknown> = {
+          model,
+          prompt: params.prompt,
+          stream: false,
+        };
+        if (params.suffix !== undefined) body.suffix = params.suffix;
+        if (params.max_tokens !== undefined) body.max_tokens = params.max_tokens;
+        if (params.temperature !== undefined) body.temperature = params.temperature;
+        if (params.stop !== undefined) body.stop = params.stop;
+
+        const apiResponse = await fetch(DEEPSEEK_FIM_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(body),
+        });
+
+        if (!apiResponse.ok) {
+          const errText = await apiResponse.text();
+          return {
+            content: [{ type: 'text' as const, text: `DeepSeek FIM API Error (${apiResponse.status}): ${errText}` }],
+            isError: true,
+          };
+        }
+
+        const json = (await apiResponse.json()) as {
+          model?: string;
+          choices?: Array<{ text?: string; finish_reason?: string }>;
+          usage?: Record<string, number>;
+        };
+        const choice = json.choices?.[0];
+        const completion = choice?.text || '';
+        const usage = json.usage || {};
+        const responseModel = json.model || model;
+        const cost = calculateCost(usage, responseModel);
+
+        let text = completion;
+        text += `\n---\n**Request Info:**\n`;
+        text += `- **Tokens:** ${usage.total_tokens || 0} (${usage.prompt_tokens || 0} prompt + ${usage.completion_tokens || 0} completion)\n`;
+        text += `- **Model:** ${responseModel}\n`;
+        text += `- **Cost:** ${cost.formatted}`;
+        if (routedFrom) {
+          text += `\n- **Routed:** ${routedFrom} -> deepseek-v4-flash`;
+        }
+
+        return {
+          content: [{ type: 'text' as const, text }],
+          structuredContent: {
+            text: completion,
+            model: responseModel,
+            usage,
+            finish_reason: choice?.finish_reason || 'stop',
+            cost_usd: parseFloat(cost.totalCost.toFixed(6)),
+            ...(routedFrom ? { routed_from: routedFrom } : {}),
+          } as unknown as Record<string, unknown>,
+        };
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: 'text' as const, text: `Error: ${msg}` }],
+          isError: true,
+        };
+      }
+    }
+  );
+
   return server;
 }
 
@@ -305,7 +419,7 @@ export default {
       return Response.json({
         name: 'deepseek-mcp-server',
         version: VERSION,
-        description: 'MCP server for DeepSeek V4 AI — chat, reasoning, function calling, JSON mode, cost tracking',
+        description: 'MCP server for DeepSeek V4 AI — chat, reasoning, function calling, JSON mode, fill-in-the-middle (FIM), cost tracking',
         transport: { type: 'streamable-http', url: 'https://deepseek-mcp.tahirl.com/mcp' },
         capabilities: { tools: true, prompts: false, resources: false },
         tools: [
@@ -333,6 +447,29 @@ export default {
                 thinking: { type: 'object', description: 'Toggle thinking mode' },
                 reasoning_effort: { type: 'string', enum: ['high', 'max'], description: 'Reasoning effort while thinking' },
                 json_mode: { type: 'boolean', description: 'Enable JSON output mode' },
+              },
+            },
+          },
+          {
+            name: 'deepseek_fim',
+            description: 'Fill-in-the-Middle (FIM) completion with DeepSeek V4. Provide a prompt (prefix) and an optional suffix; the model completes the text in between. Ideal for code completion and content infilling. Non-thinking, Beta endpoint, output capped at 4096 tokens.',
+            annotations: {
+              title: 'DeepSeek FIM',
+              readOnlyHint: true,
+              destructiveHint: false,
+              idempotentHint: false,
+              openWorldHint: true,
+            },
+            inputSchema: {
+              type: 'object',
+              required: ['prompt'],
+              properties: {
+                prompt: { type: 'string', description: 'Prefix text before the content to generate' },
+                suffix: { type: 'string', description: 'Optional suffix text after the content to generate' },
+                model: { type: 'string', enum: ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'], default: 'deepseek-v4-flash' },
+                max_tokens: { type: 'number', description: 'Max tokens to generate (up to 4096)' },
+                temperature: { type: 'number', description: 'Sampling temperature (0-2)' },
+                stop: { description: 'Stop sequence(s): a string or an array of up to 16 strings' },
               },
             },
           },

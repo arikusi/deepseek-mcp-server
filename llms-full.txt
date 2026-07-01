@@ -205,7 +205,7 @@ Parameters: `prompt` (required), `suffix`, `model` (default deepseek-v4-flash), 
 }
 ```
 
-Response structuredContent: `text`, `model`, `usage`, `finish_reason`, `cost_usd` (and `routed_from` when an alias was used). FIM is available on the npm/stdio server; the hosted worker endpoint exposes deepseek_chat only.
+Response structuredContent: `text`, `model`, `usage`, `finish_reason`, `cost_usd` (and `routed_from` when an alias was used). Available on both the npm/stdio server and the hosted worker endpoint.
 
 ## Tool: deepseek_sessions
 
