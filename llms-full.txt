@@ -85,6 +85,7 @@ deepseek-v4-flash and deepseek-v4-pro are the live V4 models (1M context, up to 
 | thinking | {type: "enabled" \| "disabled"} | No | disabled | Toggle thinking mode (non-thinking by default) |
 | reasoning_effort | "high" \| "max" | No | high | Reasoning effort while thinking is active |
 | json_mode | boolean | No | false | Enable JSON output mode (supported by both models) |
+| response_schema | object (JSON Schema) | No | - | Validate the model output against this JSON Schema. Implies JSON output. On mismatch, up to RESPONSE_SCHEMA_MAX_RETRIES repair retries feed the error back to the model. Schema regex patterns are ReDoS-screened; an unsafe pattern is rejected |
 | session_id | string | No | - | Session ID for multi-turn conversations |
 
 ### Multi-Turn Sessions
@@ -142,7 +143,29 @@ Get structured JSON responses:
 }
 ```
 
-Include the word "json" in your prompt for best results. Supported by both models.
+Include the word "json" in your prompt for best results. Supported by both models. When JSON output is requested, the returned content is deterministically recovered as a clean JSON value even if the model wrapped it in a code fence or leaked chain-of-thought around it (no extra API call); if nothing parseable is found the raw text is preserved and json_parse_error is set.
+
+### Schema-Validated JSON
+
+Pass a response_schema (a JSON Schema) to constrain the output shape, not just its syntax:
+
+```json
+{
+  "messages": [{"role": "user", "content": "Classify this sentiment as json: \"loved it\""}],
+  "model": "deepseek-v4-flash",
+  "response_schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": {"type": "string", "enum": ["positive", "negative", "neutral"]},
+      "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+    },
+    "required": ["sentiment", "confidence"],
+    "additionalProperties": false
+  }
+}
+```
+
+The server validates the parsed output with Ajv. On a mismatch it issues up to RESPONSE_SCHEMA_MAX_RETRIES repair retries (default 2, set 0 for a single deterministic call), feeding the validation error back to the model, and returns the first schema-valid object. A persistent mismatch surfaces as structuredContent.schema = {valid: false, attempts, error} rather than a silently coerced answer. Regex patterns in the schema are screened for catastrophic backtracking (ReDoS) before compilation; an unsafe pattern such as ^(a+)+$ is rejected up front as an invalid schema so it can never block the event loop.
 
 ### Tool Definition Format
 
@@ -277,6 +300,7 @@ Example output: `$0.0042 (cache hit: 80%, saved ~$0.0168)`
 | CIRCUIT_BREAKER_THRESHOLD | 5 | Consecutive failures before circuit opens |
 | CIRCUIT_BREAKER_RESET_TIMEOUT | 30000 | Milliseconds before circuit half-opens |
 | MAX_SESSION_MESSAGES | 200 | Max messages per session (sliding window) |
+| RESPONSE_SCHEMA_MAX_RETRIES | 2 | Repair retries when a response_schema validation fails (0 disables) |
 
 ## Prompt Templates (12 total)
 
@@ -388,6 +412,7 @@ src/
 | CIRCUIT_BREAKER_THRESHOLD | 5 | Consecutive failures before circuit opens |
 | CIRCUIT_BREAKER_RESET_TIMEOUT | 30000 | Milliseconds before circuit half-opens |
 | MAX_SESSION_MESSAGES | 200 | Max messages per session (sliding window) |
+| RESPONSE_SCHEMA_MAX_RETRIES | 2 | Repair retries when a response_schema validation fails (0 disables) |
 | ENABLE_MULTIMODAL | false | Enable multimodal (image) input support |
 | TRANSPORT | stdio | Transport mode: stdio or http |
 | HTTP_PORT | 3000 | HTTP server port (when TRANSPORT=http) |
