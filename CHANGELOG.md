@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-07-05
+
 ### Added
 - **`response_schema` on `deepseek_chat`: server-side JSON Schema validation with repair retries.** Pass a JSON Schema and the server validates the model's parsed output against it, issuing up to `RESPONSE_SCHEMA_MAX_RETRIES` repair retries (default 2; set 0 for a strictly deterministic single call) that feed the validation error back to the model. Returns the first schema-valid object, or the last attempt with `structuredContent.schema = {valid:false, attempts, error}` — violations surface as `valid:false` rather than silently coercing a wrong answer. Implies JSON output. Adds `ajv` as a dependency.
 - **Self-contained per-request usage/cost.** `structuredContent.request` now carries `model`, `finish_reason`, token counts, `cache_hit_tokens` / `cache_miss_tokens`, and `cost_usd` in one object — no more reassembling scattered fields or double-parsing a stringified blob out of the human-readable text. Tokens and cost both aggregate across any repair attempts (top-level `usage` still reflects the final API response).
@@ -405,7 +407,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [GitHub repository](https://github.com/arikusi/deepseek-mcp-server)
 - [Issue tracker](https://github.com/arikusi/deepseek-mcp-server/issues)
 
-[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.5.2...HEAD
+[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.2.0...HEAD
+[2.2.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.1.0...v2.2.0
+[2.1.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.0.0...v2.1.0
+[2.0.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.8.0...v2.0.0
+[1.8.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.7.0...v1.8.0
+[1.7.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.6.0...v1.7.0
+[1.6.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.4.3...v1.5.0

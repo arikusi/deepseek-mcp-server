@@ -822,4 +822,4 @@ MIT License - see [LICENSE](LICENSE) file for details
 
 **Made by [@arikusi](https://github.com/arikusi)**
 
-This is an unofficial community project and is not affiliated with DeepSeek.
+An independent, community-maintained MCP server for the DeepSeek API.
