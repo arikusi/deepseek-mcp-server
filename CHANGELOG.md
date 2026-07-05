@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **`json_mode` + `thinking` returning unparseable content.** Under thinking mode the reply could arrive fenced (` ```json `), prefixed with chain-of-thought, or with trailing text, breaking `JSON.parse`. When JSON output is requested, `structuredContent.content` is now deterministically recovered (de-fence + first balanced JSON value, with no extra API call, preserving temp=0 reproducibility); unrecoverable content preserves the raw text and sets `json_parse_error`.
 
+### Security
+- **ReDoS guard on `response_schema` regex patterns.** A caller-supplied schema is compiled by Ajv into native `RegExp` objects, so a `pattern` (or `patternProperties` key) prone to catastrophic backtracking, e.g. `^(a+)+$`, tested against a non-matching string could block the event loop for minutes and stall the whole server on a single request. Every regex in the schema is now screened with `redos-detector` before compilation; an unsafe pattern is refused up front as an `InvalidSchemaError` (a caller error) instead of running. Linear-time patterns are unaffected. Adds `redos-detector` as a dependency.
+
 ## [2.1.0] - 2026-07-01
 
 ### Added
