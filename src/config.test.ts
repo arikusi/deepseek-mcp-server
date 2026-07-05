@@ -87,6 +87,20 @@ describe('config', () => {
       expect(config.maxMessageLength).toBe(50000);
     });
 
+    it('should default responseSchemaMaxRetries to 2', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      const config = loadConfig();
+      expect(config.responseSchemaMaxRetries).toBe(2);
+    });
+
+    it('should load RESPONSE_SCHEMA_MAX_RETRIES from env', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      process.env.RESPONSE_SCHEMA_MAX_RETRIES = '0';
+      const config = loadConfig();
+      expect(config.responseSchemaMaxRetries).toBe(0);
+      delete process.env.RESPONSE_SCHEMA_MAX_RETRIES;
+    });
+
     it('should default transport to stdio', () => {
       process.env.DEEPSEEK_API_KEY = 'test-key';
       const config = loadConfig();

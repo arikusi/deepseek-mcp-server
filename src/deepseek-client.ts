@@ -19,6 +19,7 @@ import type {
   DeepSeekRawResponse,
   DeepSeekRawCompletionResponse,
   DeepSeekStreamChunk,
+  EffectiveRequest,
   FallbackInfo,
   FimCompletionParams,
   FimCompletionResponse,
@@ -42,9 +43,11 @@ const FALLBACK_ORDER: Record<string, string[]> = {
   'deepseek-reasoner': ['deepseek-v4-pro'],
 };
 
-/** Extended response with optional fallback info */
+/** Extended response with optional fallback + effective-request audit info */
 export interface ChatCompletionResponseWithFallback extends ChatCompletionResponse {
   fallback?: FallbackInfo;
+  /** What was actually sent for the attempt that produced this response */
+  effective?: EffectiveRequest;
 }
 
 /**
@@ -151,6 +154,33 @@ export class DeepSeekClient {
       status[model] = cb.getStatus();
     }
     return status;
+  }
+
+  /**
+   * Resolve the effective wire model, thinking flag, and temperature for a
+   * request — the same alias/thinking rules buildRequestParams applies, but as
+   * a pure value for audit reporting. Keep in sync with the switch in
+   * buildRequestParams below.
+   */
+  private resolveEffective(params: ChatCompletionParams): EffectiveRequest {
+    let model: string;
+    switch (params.model) {
+      case 'deepseek-reasoner':
+      case 'deepseek-chat':
+        model = 'deepseek-v4-flash';
+        break;
+      default:
+        model = params.model;
+    }
+    // reasoner always reasons; everything else defaults to non-thinking unless
+    // an explicit thinking flag turns it on.
+    const thinking =
+      params.model === 'deepseek-reasoner'
+        ? true
+        : (params.thinking ?? { type: 'disabled' }).type === 'enabled';
+    // Sampling temperature only takes effect in non-thinking mode.
+    const temperature = thinking ? undefined : params.temperature ?? 1.0;
+    return { model, thinking, temperature };
   }
 
   /**
@@ -406,7 +436,7 @@ export class DeepSeekClient {
         const rawResponse = await this.client.chat.completions.create(requestParams as unknown as OpenAI.ChatCompletionCreateParams);
         return this.parseResponse(rawResponse as unknown as DeepSeekRawResponse);
       });
-      return result;
+      return { ...result, effective: this.resolveEffective(params) };
     } catch (error: unknown) {
       // Try fallback if enabled, error is retryable, and fallback candidates exist
       const fallbackCandidates = FALLBACK_ORDER[params.model];
@@ -430,6 +460,7 @@ export class DeepSeekClient {
               fallbackModel,
               reason,
             },
+            effective: this.resolveEffective(fallbackParams),
           };
         } catch (fallbackError: unknown) {
           console.error(
@@ -462,7 +493,7 @@ export class DeepSeekClient {
       const result = await this.getCircuitBreaker(params.model).execute(async () => {
         return this.streamInternal(params);
       });
-      return result;
+      return { ...result, effective: this.resolveEffective(params) };
     } catch (error: unknown) {
       const fallbackCandidates = FALLBACK_ORDER[params.model];
       if (config.fallbackEnabled && isRetryableError(error) && fallbackCandidates?.length) {
@@ -482,6 +513,7 @@ export class DeepSeekClient {
               fallbackModel,
               reason,
             },
+            effective: this.resolveEffective(fallbackParams),
           };
         } catch (fallbackError: unknown) {
           throw new FallbackExhaustedError(

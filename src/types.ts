@@ -179,6 +179,7 @@ export interface DeepSeekChatInput {
   thinking?: { type: 'enabled' | 'disabled' };
   reasoning_effort?: 'high' | 'max';
   json_mode?: boolean;
+  response_schema?: Record<string, unknown>;
 }
 
 // ─── FIM (Fill-in-the-Middle) Types ────────────────────────────
@@ -386,6 +387,20 @@ export interface FallbackInfo {
   originalModel: string;
   fallbackModel: string;
   reason: string;
+}
+
+/**
+ * The effective request parameters actually sent to the API for an attempt,
+ * after alias routing and thinking-mode resolution. Used for audit fields
+ * so a caller can record exactly what answered — not just the requested alias.
+ */
+export interface EffectiveRequest {
+  /** Wire model actually called (aliases resolved, e.g. deepseek-reasoner -> deepseek-v4-flash) */
+  model: string;
+  /** Whether thinking/chain-of-thought was enabled for this attempt */
+  thinking: boolean;
+  /** Effective sampling temperature; undefined when thinking mode ignores it */
+  temperature?: number;
 }
 
 // ─── Type Guards ───────────────────────────────────────────────

@@ -43,6 +43,12 @@ export const ThinkingSchema = z
 
 export const ReasoningEffortSchema = z.enum(['high', 'max']).optional();
 
+/** A caller-supplied JSON Schema for validating the model's JSON output.
+ *  Kept permissive (any object) — Ajv compiles/validates it at request time. */
+export const ResponseSchemaSchema = z
+  .record(z.string(), z.unknown())
+  .optional();
+
 /** Accepted model identifiers. v4-flash/v4-pro are the live API models;
  *  deepseek-chat/deepseek-reasoner are compatibility aliases resolved internally. */
 export const ModelSchema = z
@@ -106,6 +112,7 @@ export const ChatInputWithToolsSchema = z.object({
   thinking: ThinkingSchema,
   reasoning_effort: ReasoningEffortSchema,
   json_mode: z.boolean().optional(),
+  response_schema: ResponseSchemaSchema,
   session_id: z.string().optional(),
 });
 

@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`response_schema` on `deepseek_chat`: server-side JSON Schema validation with repair retries.** Pass a JSON Schema and the server validates the model's parsed output against it, issuing up to `RESPONSE_SCHEMA_MAX_RETRIES` repair retries (default 2; set 0 for a strictly deterministic single call) that feed the validation error back to the model. Returns the first schema-valid object, or the last attempt with `structuredContent.schema = {valid:false, attempts, error}` — violations surface as `valid:false` rather than silently coercing a wrong answer. Implies JSON output. Adds `ajv` as a dependency.
+- **Self-contained per-request usage/cost.** `structuredContent.request` now carries `model`, `finish_reason`, token counts, `cache_hit_tokens` / `cache_miss_tokens`, and `cost_usd` in one object — no more reassembling scattered fields or double-parsing a stringified blob out of the human-readable text. Tokens and cost both aggregate across any repair attempts (top-level `usage` still reflects the final API response).
+- **Audit fields.** `structuredContent.effective` = `{model, thinking, temperature}` (what was actually sent after alias/thinking resolution); `request.wire_model` (resolved model actually called), `request.thinking`, `request.temperature`, and `request.fallback_used`; plus a top-level `fallback` object and a "Fallback:" line in the text output when a circuit-breaker model fallback fires — so a silent fallback to a different model is visible to callers instead of undetected.
+- `RESPONSE_SCHEMA_MAX_RETRIES` environment configuration for the repair-retry bound.
+
+### Fixed
+- **`json_mode` + `thinking` returning unparseable content.** Under thinking mode the reply could arrive fenced (` ```json `), prefixed with chain-of-thought, or with trailing text, breaking `JSON.parse`. When JSON output is requested, `structuredContent.content` is now deterministically recovered (de-fence + first balanced JSON value, with no extra API call, preserving temp=0 reproducibility); unrecoverable content preserves the raw text and sets `json_parse_error`.
+
 ## [2.1.0] - 2026-07-01
 
 ### Added

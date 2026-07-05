@@ -22,6 +22,9 @@ const ConfigSchema = z.object({
   circuitBreakerResetTimeout: z.number().positive().default(30000),
   maxSessionMessages: z.number().positive().default(200),
   enableMultimodal: z.boolean().default(false),
+  // Max server-side repair retries when a response_schema validation fails.
+  // Set to 0 for a strictly deterministic single call (no extra API round-trips).
+  responseSchemaMaxRetries: z.number().min(0).max(5).default(2),
   transport: z.enum(['stdio', 'http']).default('stdio'),
   httpPort: z.number().positive().default(3000),
   httpHost: z.string().min(1).default('127.0.0.1'),
@@ -71,6 +74,9 @@ export function loadConfig(): Config {
       ? parseInt(process.env.MAX_SESSION_MESSAGES, 10)
       : 200,
     enableMultimodal: process.env.ENABLE_MULTIMODAL === 'true',
+    responseSchemaMaxRetries: process.env.RESPONSE_SCHEMA_MAX_RETRIES
+      ? parseInt(process.env.RESPONSE_SCHEMA_MAX_RETRIES, 10)
+      : 2,
     transport: (process.env.TRANSPORT || 'stdio') as 'stdio' | 'http',
     httpPort: process.env.HTTP_PORT ? parseInt(process.env.HTTP_PORT, 10) : 3000,
     httpHost: process.env.HTTP_HOST || '127.0.0.1',

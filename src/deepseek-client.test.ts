@@ -66,6 +66,53 @@ describe('DeepSeekClient', () => {
       expect(response.tool_calls).toBeUndefined();
     });
 
+    it('should attach effective request audit info', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [
+          { message: { content: 'Hi', tool_calls: undefined }, finish_reason: 'stop' },
+        ],
+        model: 'deepseek-v4-flash',
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      });
+
+      const client = new DeepSeekClient();
+      // deepseek-chat alias resolves to v4-flash, non-thinking by default
+      const response = await client.createChatCompletion({
+        model: 'deepseek-chat',
+        messages: [{ role: 'user', content: 'Hi' }],
+        temperature: 0.3,
+      });
+
+      expect(response.effective).toEqual({
+        model: 'deepseek-v4-flash',
+        thinking: false,
+        temperature: 0.3,
+      });
+    });
+
+    it('should mark effective thinking and omit temperature for reasoner', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [
+          { message: { content: 'Reasoned', tool_calls: undefined }, finish_reason: 'stop' },
+        ],
+        model: 'deepseek-v4-flash',
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      });
+      const mockError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const client = new DeepSeekClient();
+      const response = await client.createChatCompletion({
+        model: 'deepseek-reasoner',
+        messages: [{ role: 'user', content: 'Hi' }],
+        temperature: 0.9,
+      });
+
+      expect(response.effective?.model).toBe('deepseek-v4-flash');
+      expect(response.effective?.thinking).toBe(true);
+      expect(response.effective?.temperature).toBeUndefined();
+      mockError.mockRestore();
+    });
+
     it('should handle reasoning content (R1 model)', async () => {
       mockCreate.mockResolvedValue({
         choices: [
