@@ -93,6 +93,7 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 - **MCP Resources**: `deepseek://models`, `deepseek://config`, `deepseek://usage` — query model info, config, and usage stats
 - **Thinking Mode**: Enable thinking on deepseek-chat with `thinking: {type: "enabled"}`
 - **JSON Output Mode**: Structured JSON responses with `json_mode: true`
+- **Schema-Validated JSON**: Pass a `response_schema` and the server validates the output against it, with bounded repair retries and a ReDoS guard on schema patterns
 - **Function Calling**: OpenAI-compatible tool use with up to 128 tool definitions
 - **Fill-in-the-Middle (FIM)**: Code and content completion between a prefix and suffix via the `deepseek_fim` tool
 - **Cache-Aware Cost Tracking**: Automatic cost calculation with cache hit/miss breakdown
@@ -199,13 +200,16 @@ Chat with DeepSeek AI models with automatic cost tracking and function calling s
 - `thinking` (optional): Toggle thinking mode, `{type: "enabled"}` to reason or `{type: "disabled"}` for a fast answer (non-thinking is the default)
 - `reasoning_effort` (optional): "high" (default) or "max", applies only while thinking mode is active
 - `json_mode` (optional): Enable JSON output mode (supported by both models)
+- `response_schema` (optional): A JSON Schema to validate the model output against. Implies JSON output. The server validates the parsed result and, on failure, issues up to `RESPONSE_SCHEMA_MAX_RETRIES` repair retries (default 2, set 0 to disable) that feed the validation error back to the model. Schema regex patterns are screened for ReDoS and an unsafe pattern is rejected up front.
 - `session_id` (optional): Session ID for multi-turn conversations. Previous context is automatically prepended.
 
 **Response includes:**
-- Content with formatting
+- Content with formatting (recovered as clean JSON when JSON output is requested)
 - Function call results (if tools were used)
 - Request information (tokens, model, cost in USD)
-- Structured data with `cost_usd` and `tool_calls` fields
+- `structuredContent.request`: a self-contained per-request usage and cost summary (token counts, cache hit/miss, `cost_usd`), aggregated across any repair retries
+- `structuredContent.effective` and `fallback`: what was actually sent after alias/thinking resolution, and any silent model fallback that fired
+- `structuredContent.schema`: when `response_schema` is used, `{valid, attempts, error?}`; `json_parse_error` when JSON output could not be recovered
 
 **Example:**
 
@@ -322,6 +326,31 @@ When thinking mode is enabled, `temperature` and `top_p` are automatically ignor
 ```
 
 JSON mode ensures the model outputs valid JSON. Include the word "json" in your prompt for best results. Supported by all models.
+
+**Schema-Validated JSON Example:**
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": "Classify this review sentiment as json: \"Absolutely loved it\""
+    }
+  ],
+  "model": "deepseek-v4-flash",
+  "response_schema": {
+    "type": "object",
+    "properties": {
+      "sentiment": { "type": "string", "enum": ["positive", "negative", "neutral"] },
+      "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+    },
+    "required": ["sentiment", "confidence"],
+    "additionalProperties": false
+  }
+}
+```
+
+The server validates the parsed output against the schema. If it does not match, it retries up to `RESPONSE_SCHEMA_MAX_RETRIES` times (default 2), feeding the validation error back to the model, and returns the first schema-valid object. A persistent mismatch is surfaced as `structuredContent.schema.valid = false` rather than a silently coerced answer. Regex patterns in the schema are screened for catastrophic backtracking (ReDoS); an unsafe pattern is rejected up front as an invalid schema.
 
 **Multi-Turn Session Example:**
 
@@ -476,6 +505,7 @@ The server is configured via environment variables. All settings except `DEEPSEE
 | `CIRCUIT_BREAKER_THRESHOLD` | `5` | Consecutive failures before circuit opens |
 | `CIRCUIT_BREAKER_RESET_TIMEOUT` | `30000` | Milliseconds before circuit half-opens |
 | `MAX_SESSION_MESSAGES` | `200` | Max messages per session (sliding window) |
+| `RESPONSE_SCHEMA_MAX_RETRIES` | `2` | Repair retries when a `response_schema` validation fails (0 disables) |
 | `ENABLE_MULTIMODAL` | `false` | Enable multimodal (image) input support |
 | `TRANSPORT` | `stdio` | Transport mode: `stdio` or `http` |
 | `HTTP_PORT` | `3000` | HTTP server port (when TRANSPORT=http) |
