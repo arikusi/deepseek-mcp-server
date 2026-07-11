@@ -30,8 +30,6 @@ function getPricing(model: string): ModelPricing {
   return MODEL_PRICING[model] || DEFAULT_PRICING;
 }
 
-interface Env {}
-
 function extractApiKey(request: Request): string | null {
   const auth = request.headers.get('authorization');
   if (!auth?.startsWith('Bearer ')) return null;
