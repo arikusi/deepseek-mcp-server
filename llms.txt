@@ -1,6 +1,6 @@
 # DeepSeek MCP Server
 
-> MCP server integrating DeepSeek V4 models (deepseek-v4-flash and deepseek-v4-pro, 1M context) with Claude Code, Gemini CLI, and other MCP clients. deepseek-chat and deepseek-reasoner stay as compatibility aliases. Hosted remote endpoint at deepseek-mcp.tahirl.com/mcp (BYOK, Bring Your Own Key). Stdio and HTTP transports, Docker deployment, multi-turn sessions, model fallback with circuit breaker, MCP Resources, thinking mode, JSON output, function calling, fill-in-the-middle (FIM) completion, multimodal content support, model-aware cost tracking, 12 prompt templates.
+> MCP server integrating DeepSeek V4 models (deepseek-v4-flash and deepseek-v4-pro, 1M context) with Claude Code, Gemini CLI, and other MCP clients. deepseek-chat and deepseek-reasoner stay as compatibility aliases. Hosted remote endpoint at deepseek-mcp.tahirl.com/mcp (BYOK, Bring Your Own Key). Stdio and HTTP transports, Docker deployment, multi-turn sessions, model fallback with circuit breaker, MCP Resources, thinking mode, JSON output, schema-validated JSON output (response_schema), function calling, fill-in-the-middle (FIM) completion, multimodal content support, model-aware cost tracking, 12 prompt templates.
 
 ## Docs
 
@@ -11,6 +11,7 @@
 - [MCP Resources](https://github.com/arikusi/deepseek-mcp-server#available-resources): deepseek://models, deepseek://config, deepseek://usage
 - [Thinking Mode](https://github.com/arikusi/deepseek-mcp-server#thinking-mode-example): Enable thinking mode with thinking parameter
 - [JSON Mode](https://github.com/arikusi/deepseek-mcp-server#json-output-mode-example): Structured JSON output mode
+- [Schema-Validated JSON](https://github.com/arikusi/deepseek-mcp-server#deepseek_chat): response_schema parameter validates output against a JSON Schema, with bounded repair retries and a ReDoS guard on schema patterns
 - [Function Calling](https://github.com/arikusi/deepseek-mcp-server#function-calling-example): Tool definitions, tool_choice, tool result messages
 - [FIM Completion](https://github.com/arikusi/deepseek-mcp-server#deepseek_fim): Fill-in-the-middle code and content completion via deepseek_fim (prompt + suffix)
 - [Prompt Templates](https://github.com/arikusi/deepseek-mcp-server#available-prompts): 12 prompts for debugging, code review, research
