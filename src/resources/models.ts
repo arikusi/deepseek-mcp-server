@@ -60,7 +60,7 @@ function buildModelsData() {
     aliases: {
       'deepseek-chat': 'deepseek-v4-flash (non-thinking)',
       'deepseek-reasoner': 'deepseek-v4-flash (thinking)',
-      note: 'The deepseek-chat and deepseek-reasoner names are accepted for backward compatibility and resolve to deepseek-v4-flash. The DeepSeek API retires these names on 2026-07-24.',
+      note: 'The deepseek-chat and deepseek-reasoner names are deprecated. They are still accepted for backward compatibility and resolve to deepseek-v4-flash, but will be removed in the next major release. The DeepSeek API itself retired these names on 2026-07-24; prefer deepseek-v4-flash or deepseek-v4-pro.',
     },
   };
 }

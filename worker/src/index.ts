@@ -75,7 +75,7 @@ function createMcpServer(apiKey: string): McpServer {
       model: z
         .enum(['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'])
         .default('deepseek-v4-flash')
-        .describe('Model to use. v4-flash (default) or v4-pro, both 1M context. Non-thinking by default; aliases: deepseek-chat -> v4-flash non-thinking, deepseek-reasoner -> v4-flash thinking'),
+        .describe('Model to use. v4-flash (default) or v4-pro, both 1M context. Non-thinking by default. Deprecated aliases (still accepted, prefer v4 names): deepseek-chat -> v4-flash non-thinking, deepseek-reasoner -> v4-flash thinking'),
       temperature: z.number().min(0).max(2).optional().describe('Sampling temperature (0-2). Ignored in thinking mode'),
       max_tokens: z.number().min(1).max(384000).optional().describe('Max tokens to generate (up to 384000)'),
       stream: z.boolean().default(false).describe('Enable streaming (accumulated response returned)'),
@@ -284,7 +284,7 @@ function createMcpServer(apiKey: string): McpServer {
 
   server.tool(
     'deepseek_fim',
-    'Fill-in-the-Middle (FIM) completion with DeepSeek V4. Provide a prompt (prefix) and an optional suffix; the model completes the text in between. Ideal for code completion and content infilling. Runs in non-thinking mode on the Beta endpoint; output is capped at 4096 tokens. Aliases deepseek-chat / deepseek-reasoner resolve to deepseek-v4-flash. Includes cost tracking.',
+    'Fill-in-the-Middle (FIM) completion with DeepSeek V4. Provide a prompt (prefix) and an optional suffix; the model completes the text in between. Ideal for code completion and content infilling. Runs in non-thinking mode on the Beta endpoint; output is capped at 4096 tokens. The deprecated aliases deepseek-chat / deepseek-reasoner are still accepted and resolve to deepseek-v4-flash. Includes cost tracking.',
     {
       prompt: z
         .string()
@@ -297,7 +297,7 @@ function createMcpServer(apiKey: string): McpServer {
       model: z
         .enum(['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'])
         .default('deepseek-v4-flash')
-        .describe('Model to use. v4-flash (default) or v4-pro. Aliases deepseek-chat / deepseek-reasoner resolve to v4-flash. FIM is always non-thinking.'),
+        .describe('Model to use. v4-flash (default) or v4-pro. Deprecated aliases deepseek-chat / deepseek-reasoner are still accepted and resolve to v4-flash. FIM is always non-thinking.'),
       max_tokens: z
         .number()
         .min(1)

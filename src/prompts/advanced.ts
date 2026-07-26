@@ -36,7 +36,7 @@ Provide:
 3. **Proof**: Step-by-step logical reasoning
 4. **Conclusion**: QED statement
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" for strict logical reasoning.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for strict logical reasoning.`,
           },
         },
       ],
@@ -79,7 +79,7 @@ Please identify:
 6. **Validity**: Is the reasoning sound?
 7. **Improvements**: How to strengthen the argument
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" for thorough logical analysis.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for thorough logical analysis.`,
           },
         },
       ],
@@ -125,7 +125,7 @@ For each idea, provide:
 4. **Value**: Potential impact
 5. **Next Steps**: How to validate/implement
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" for reasoned creativity.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for reasoned creativity.`,
           },
         },
       ],
@@ -209,7 +209,7 @@ Please:
 4. **Test**: Suggest test cases with reasoning
 5. **Optimize**: Mention potential improvements
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" for thoughtful code generation.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for thoughtful code generation.`,
           },
         },
       ],
