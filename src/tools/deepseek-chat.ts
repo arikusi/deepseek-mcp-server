@@ -73,7 +73,7 @@ export function registerChatTool(
       description:
         'Chat with DeepSeek V4 models. deepseek-v4-flash (fast, economical) and deepseek-v4-pro (most capable), ' +
         'both 1M context with optional chain-of-thought thinking mode. deepseek-chat and deepseek-reasoner are ' +
-        'accepted as backward-compatible aliases (resolve to v4-flash). ' +
+        'deprecated aliases, still accepted for backward compatibility (resolve to v4-flash) but slated for removal; prefer the v4 names. ' +
         'Features: multi-turn sessions (session_id), function calling (tools parameter), thinking mode, ' +
         'JSON output mode, multimodal input (when enabled), automatic cost tracking, and model fallback with circuit breaker resilience.',
       inputSchema: {
@@ -94,7 +94,7 @@ export function registerChatTool(
           .describe(
             'Model to use. deepseek-v4-flash (default, fast/economical) or deepseek-v4-pro (most capable), both 1M context, up to 384K output. ' +
             'Non-thinking by default for speed; pass thinking:{type:"enabled"} to reason. ' +
-            'Aliases: deepseek-chat -> v4-flash non-thinking, deepseek-reasoner -> v4-flash thinking.'
+            'Deprecated aliases (still accepted, prefer v4 names): deepseek-chat -> v4-flash non-thinking, deepseek-reasoner -> v4-flash thinking.'
           ),
         temperature: z
           .number()

@@ -54,7 +54,7 @@ export function registerFimTool(
         'Fill-in-the-Middle (FIM) completion with DeepSeek V4. Provide a prompt (prefix) and an optional suffix; ' +
         'the model completes the text in between. Ideal for code completion and content infilling. ' +
         'Runs in non-thinking mode on the Beta endpoint; output is capped at 4K tokens. ' +
-        'Aliases deepseek-chat and deepseek-reasoner resolve to deepseek-v4-flash (FIM has no thinking mode). ' +
+        'The deprecated aliases deepseek-chat and deepseek-reasoner are still accepted and resolve to deepseek-v4-flash (FIM has no thinking mode). ' +
         'Includes automatic cost tracking and model fallback with circuit breaker resilience.',
       inputSchema: {
         prompt: z
@@ -79,7 +79,7 @@ export function registerFimTool(
           .default(modelDefault)
           .describe(
             'Model to use. deepseek-v4-flash (default, fast/economical) or deepseek-v4-pro (most capable). ' +
-            'Aliases deepseek-chat / deepseek-reasoner resolve to v4-flash. FIM is always non-thinking.'
+            'Deprecated aliases deepseek-chat / deepseek-reasoner are still accepted and resolve to v4-flash. FIM is always non-thinking.'
           ),
         max_tokens: z
           .number()

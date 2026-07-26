@@ -45,7 +45,7 @@ Please:
 3. Suggest a fix with explanation
 4. Provide the corrected code
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" for detailed reasoning.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for detailed reasoning.`,
           },
         },
       ],
@@ -89,7 +89,7 @@ For each issue found, provide:
 3. **Severity**: Critical/High/Medium/Low
 4. **Fix**: How to resolve it
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" for thorough analysis.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for thorough analysis.`,
           },
         },
       ],
@@ -133,7 +133,7 @@ Please provide:
 4. **Conclusion**: Synthesis and implications
 5. **Sources**: Cite reasoning steps
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" for comprehensive analysis.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for comprehensive analysis.`,
           },
         },
       ],
@@ -171,7 +171,7 @@ Please provide:
 4. **Recommendation**: Best approach with detailed reasoning
 5. **Action Plan**: Step-by-step plan with rationale
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" for thorough strategic thinking.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for thorough strategic thinking.`,
           },
         },
       ],
@@ -210,7 +210,7 @@ Please:
 4. Show your reasoning for why this explanation works
 5. Build up complexity gradually if needed
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" to ensure logical explanations.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} to ensure logical explanations.`,
           },
         },
       ],

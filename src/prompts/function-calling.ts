@@ -51,7 +51,7 @@ Please analyze:
 4. **Fix**: Suggest corrected tool definitions and/or messages
 5. **Best Practices**: Tips for reliable function calling
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" for thorough analysis.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for thorough analysis.`,
           },
         },
       ],
@@ -91,7 +91,7 @@ Generate:
 
 Output the tool definition as a JSON code block ready to use.
 
-Use the deepseek_chat tool with model: "deepseek-reasoner" for precise schema generation.`,
+Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for precise schema generation.`,
           },
         },
       ],
