@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.2.1] - 2026-08-13
+
+### Changed
+- **`deepseek-chat` and `deepseek-reasoner` are now marked deprecated.** DeepSeek retired those model names in its own API on 2026-07-24. This server keeps accepting them and resolves them to `deepseek-v4-flash` before the request goes out, so existing configs and `DEFAULT_MODEL` settings keep working unchanged. What changed is the labelling: tool and parameter descriptions, the `deepseek://models` resource, README and the llms.txt files now call them deprecated and slated for removal in the next major release. Prefer `deepseek-v4-flash` or `deepseek-v4-pro`.
+- All 11 prompt templates now request `deepseek-v4-flash` with `thinking: {type: "enabled"}` instead of the `deepseek-reasoner` alias. Same model, same reasoning, spelled the way that survives the alias removal.
+- `@modelcontextprotocol/sdk` updated to 1.30.0.
+
+### Fixed
+- Fallback documentation in README and llms-full.txt described a `deepseek-chat` to `deepseek-reasoner` fallback that has not existed since 2.0.0. The real order is `deepseek-v4-flash` to `deepseek-v4-pro`, with the aliases falling back to `deepseek-v4-pro`.
+
+### Security
+- Transitive dependency patches pulled in through the MCP SDK: `ip-address` 10.4.0 (SSRF and trust-boundary bypass via leading-zero octets, CIDR suffixes and IPv4-mapped IPv6 addresses), `fast-uri` 3.1.5 (host confusion via backslash authority introducer), `hono` 4.13.1 (cross-user data disclosure through `memo()`, CORS ReDoS, Language middleware DoS, Proxy Helper header leak) and `@hono/node-server` 1.19.17 (path traversal in `serve-static` on Windows). These reach the server only through the SDK's HTTP transport; the stdio path never touched them.
+
 ## [2.2.0] - 2026-07-05
 
 ### Added
@@ -407,7 +420,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [GitHub repository](https://github.com/arikusi/deepseek-mcp-server)
 - [Issue tracker](https://github.com/arikusi/deepseek-mcp-server/issues)
 
-[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.2.0...HEAD
+[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.2.1...HEAD
+[2.2.1]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v1.8.0...v2.0.0
