@@ -64,7 +64,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "ajv": "^8.18.0",
-    "openai": "^6.27.0",
+    "openai": "^7.4.0",
     "redos-detector": "^6.1.4",
     "zod": "^4.3.6"
   },
