@@ -25,7 +25,7 @@
 
 <p align="center">
   <a href="https://registry.modelcontextprotocol.io/?q=io.github.arikusi"><img src="https://img.shields.io/badge/Official_MCP_Registry-active-brightgreen" alt="Official MCP Registry" /></a>
-  <a href="https://smithery.ai/servers/arikusi/deepseek-mcp-server"><img src="https://smithery.ai/badge/@arikusi/deepseek-mcp-server" alt="Smithery" /></a>
+  <a href="https://lightnow.ai/servers/io.github.arikusi/deepseek"><img src="https://lightnow.ai/badge/io.github.arikusi/deepseek" alt="LightNow capabilities" /></a>
   <a href="https://lobehub.com/mcp/arikusi-deepseek-mcp-server"><img src="https://lobehub.com/badge/mcp/arikusi-deepseek-mcp-server" alt="LobeHub" /></a>
 </p>
 
