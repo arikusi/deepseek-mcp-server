@@ -135,3 +135,42 @@ describe('schema-validate/ReDoS guard', () => {
     expect(r.valid).toBe(true);
   });
 });
+
+describe('schema-validate/depth cap is fail-closed', () => {
+  /** Nest `{ $defs: { dN: ... } }` `depth` times around `leaf`, and return the
+   *  root schema plus a `$ref` pointing at the buried leaf. */
+  function buriedRefSchema(depth: number, leaf: Record<string, unknown>) {
+    let nested: Record<string, unknown> = leaf;
+    const pointer: string[] = [];
+    for (let i = depth - 1; i >= 0; i--) nested = { $defs: { [`d${i}`]: nested } };
+    for (let i = 0; i < depth; i++) pointer.push('$defs', `d${i}`);
+    return {
+      type: 'object',
+      properties: { value: { $ref: `#/${pointer.join('/')}` } },
+      required: ['value'],
+      ...nested,
+    };
+  }
+
+  it('rejects an unsafe pattern buried past the depth cap and reached via $ref', () => {
+    // Regression: the walker used to `return` once past MAX_SCHEMA_DEPTH while
+    // Ajv still compiled the whole schema, so this pattern reached a live RegExp.
+    const schema = buriedRefSchema(105, { type: 'string', pattern: '^(a+)+$' });
+    expect(() => validateAgainstSchema({ value: 'aaaa' }, schema)).toThrow(
+      InvalidSchemaError
+    );
+  });
+
+  it('rejects an over-deep schema even when it carries no pattern at all', () => {
+    // We cannot screen it in full, so we do not accept it.
+    const schema = buriedRefSchema(105, { type: 'string' });
+    expect(() => validateAgainstSchema({ value: 'x' }, schema)).toThrow(
+      /nests deeper than/
+    );
+  });
+
+  it('still accepts a deeply nested schema that stays under the cap', () => {
+    const schema = buriedRefSchema(20, { type: 'string' });
+    expect(validateAgainstSchema({ value: 'x' }, schema).valid).toBe(true);
+  });
+});
