@@ -17,7 +17,9 @@ import { isSafe } from 'redos-detector';
 const ajv = new Ajv({ allErrors: true, strict: false });
 
 /** Cap on schema-walk recursion depth — a defensive bound against a pathologically
- *  deep caller schema; well past anything a real response_schema needs. */
+ *  deep caller schema; well past anything a real response_schema needs.
+ *  Exceeding it is fail-closed: a schema we cannot fully screen is rejected
+ *  rather than accepted un-screened. See assertSchemaPatternsSafe. */
 const MAX_SCHEMA_DEPTH = 200;
 
 /** Cache compiled validators keyed by the schema's JSON string. */
@@ -71,10 +73,21 @@ function assertRegexSafe(pattern: string): void {
  * Walk a JSON Schema and ReDoS-check every regex it carries: `pattern` values
  * (whose value is the regex) and `patternProperties` keys (which are regexes).
  * Recursion covers nested subschemas ($defs, items, allOf, propertyNames, …).
- * Throws InvalidSchemaError on the first unsafe pattern.
+ * Throws InvalidSchemaError on the first unsafe pattern, and also when the
+ * schema is too deep to screen in full (see MAX_SCHEMA_DEPTH).
  */
 function assertSchemaPatternsSafe(node: unknown, depth = 0): void {
-  if (depth > MAX_SCHEMA_DEPTH || node === null || typeof node !== 'object') return;
+  if (node === null || typeof node !== 'object') return;
+
+  // Fail closed. Returning here instead would leave the rest of the schema
+  // un-screened while Ajv still compiles it in full, so a caller could park an
+  // unsafe pattern below the cap and reach it from a shallow `$ref`.
+  if (depth > MAX_SCHEMA_DEPTH) {
+    throw new InvalidSchemaError(
+      `Invalid response_schema: schema nests deeper than ${MAX_SCHEMA_DEPTH} levels, ` +
+        'so it cannot be fully screened for ReDoS-prone regex patterns. Flatten the schema.'
+    );
+  }
 
   if (Array.isArray(node)) {
     for (const item of node) assertSchemaPatternsSafe(item, depth + 1);
