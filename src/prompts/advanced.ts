@@ -6,6 +6,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
+import { getPricing } from '../cost.js';
 
 export function registerAdvancedPrompts(server: McpServer): void {
   server.registerPrompt(
@@ -146,33 +147,45 @@ Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type"
           .describe('Estimated token count (prompt + completion)'),
       },
     },
-    ({ task, estimated_tokens }, _extra) => ({
-      messages: [
-        {
-          role: 'user' as const,
-          content: {
-            type: 'text' as const,
-            text: `You are a cost analysis expert. Compare LLM costs for this task.
+    ({ task, estimated_tokens }, _extra) => {
+      // Read the live pricing table rather than restating it, so this prompt
+      // cannot drift out of sync with what the server actually bills.
+      const flash = getPricing('deepseek-v4-flash');
+      const pro = getPricing('deepseek-v4-pro');
+
+      return {
+        messages: [
+          {
+            role: 'user' as const,
+            content: {
+              type: 'text' as const,
+              text: `You are a cost analysis expert. Compare LLM costs for this task.
 
 Task: ${task}
 Estimated tokens: ${estimated_tokens} (prompt + completion)
 
-Calculate costs for:
-1. **DeepSeek V4 Flash**: $0.14/1M prompt + $0.28/1M completion
-2. **DeepSeek V4 Pro**: $0.435/1M prompt + $0.87/1M completion
-3. **Claude Sonnet**: $3/1M prompt + $15/1M completion
-4. **GPT-4**: $2.50/1M prompt + $10/1M completion
+DeepSeek rates, per 1M tokens, taken from this server's own pricing table so
+they match what it actually bills:
+
+1. **DeepSeek V4 Flash**: $${flash.cache_miss} prompt (cache miss), $${flash.cache_hit} prompt (cache hit), $${flash.output} completion
+2. **DeepSeek V4 Pro**: $${pro.cache_miss} prompt (cache miss), $${pro.cache_hit} prompt (cache hit), $${pro.output} completion
+
+Compare those against the current published rates for a frontier model and a
+mid-tier model from Anthropic and OpenAI. Quote the figures you use and say
+when they were published, so the reader can check them.
 
 Show:
-- Cost breakdown per model
-- Savings percentage with DeepSeek
-- When to use which model (cost vs quality)
+* Cost breakdown per model
+* Savings percentage with DeepSeek
+* How much the DeepSeek figure moves once prompt caching is in play
+* When to use which model (cost vs quality)
 
 Use the deepseek_chat tool with model: "deepseek-v4-flash" for this analysis.`,
+            },
           },
-        },
-      ],
-    })
+        ],
+      };
+    }
   );
 
   server.registerPrompt(
