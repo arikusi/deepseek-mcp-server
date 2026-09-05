@@ -419,7 +419,7 @@ src/
 - OpenAI SDK v6 for API compatibility
 - Zod v4 for validation
 - Vitest for testing (340 tests, ~92% line coverage)
-- Node.js 20+
+- Node.js 22+
 
 ## Links
 
