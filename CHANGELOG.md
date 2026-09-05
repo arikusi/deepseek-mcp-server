@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-09-05
+
+### Security
+- **DNS rebinding against the shipped Docker packaging (high).** The MCP SDK installs Host-header validation only for loopback bind addresses, or when an explicit `allowedHosts` list is passed; for `0.0.0.0` it warns and installs nothing. Our own packaging landed exactly there: the `Dockerfile` sets `HTTP_HOST=0.0.0.0` unconditionally, because a container has to bind all interfaces for a published port to work, and the bundled `docker-compose.yml` set neither `HTTP_ALLOWED_HOSTS` nor `HTTP_AUTH_TOKEN`. Running our own compose file unedited therefore started the server with no Host check and no credential, leaving `/mcp` reachable by any web page the operator visited, through DNS rebinding, with `DEEPSEEK_API_KEY` applied to every call. Publishing the port on `127.0.0.1` did not prevent it: rebinding targets the loopback address the victim's own browser already reaches. `startHttpTransport` now refuses to start on a wildcard bind when neither `HTTP_ALLOWED_HOSTS` nor `HTTP_AUTH_TOKEN` is set, naming both remedies in the error, and the image ships `HTTP_ALLOWED_HOSTS=localhost,127.0.0.1,[::1]` so the ordinary `docker compose up` path keeps working with the check installed. `HTTP_ALLOW_UNPROTECTED_BIND=true` is the explicit opt-out. Reported by @avishaigonen-pluto and @yotampe-pluto.
+- **`response_schema` ReDoS guard bypassed through `$ref` (high).** The 2.2.0 guard screens every schema regex with `redos-detector` before Ajv compiles it, but the walk stopped at `MAX_SCHEMA_DEPTH` and returned silently, while `getValidator` still compiled the schema in full. The depth bound was therefore not a defence but a bypass primitive: a catastrophic-backtracking pattern parked below the cutoff and reached from a shallow `$ref` was compiled into a live `RegExp` the screen had never seen, and a short non-matching model response then blocked the event loop, stalling every session in the process rather than just the caller's. The bound is now fail-closed: a schema that cannot be screened in full is rejected as a caller error. Reported by @TrashSquid.
+
+### Changed
+- **Minimum Node.js is now 22.** Node 20 reached end of life on 2026-04-30, so `engines` had been advertising an unsupported runtime. The Docker image builds on `node:22-alpine`, and CI covers 22.x, 24.x and 26.x.
+- `openai` updated to 7.x. Its only breaking change is that same Node 22 floor; the API surface this server uses is unchanged.
+
+### Fixed
+- **The Docker `HEALTHCHECK` never passed.** It probed `http://localhost:3000/health`, but `localhost` resolves to `::1` first in that image while the server binds `0.0.0.0`, which is IPv4 only, so every probe got `ECONNREFUSED` and every container reported unhealthy. It now addresses `127.0.0.1`. Found while verifying the bind fix, and confirmed to predate it.
+- `cost_comparison` restated the DeepSeek per-token rates as literals inside the prompt body, a second copy of the pricing table that nothing kept in sync and that had already drifted. It now reads the live pricing table. The competitor figures beside it are no longer hardcoded either.
+- README and llms-full.txt claimed 280 tests and ~89% line coverage, and the TypeScript badge still said 6.0. The Smithery badge image had been returning HTTP 500 and was removed; the Smithery listing itself is healthy and stays linked in prose.
+
 ## [2.2.1] - 2026-08-13
 
 ### Changed
