@@ -55,7 +55,7 @@ Use the [Feature Request template](.github/ISSUE_TEMPLATE/feature_request.md) wh
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - Git
 - TypeScript knowledge
 - A DeepSeek API key for testing

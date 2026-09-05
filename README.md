@@ -112,7 +112,7 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 22+
 - A DeepSeek API key (get one at [https://platform.deepseek.com](https://platform.deepseek.com))
 
 ### Manual Installation
