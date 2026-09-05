@@ -165,6 +165,24 @@ describe('config', () => {
       const config = loadConfig();
       expect(config.httpAllowedHosts).toEqual(['mcp.example.com', 'localhost']);
     });
+
+    it('should default HTTP_ALLOW_UNPROTECTED_BIND to false', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      delete process.env.HTTP_ALLOW_UNPROTECTED_BIND;
+      expect(loadConfig().httpAllowUnprotectedBind).toBe(false);
+    });
+
+    it('should only treat the exact string "true" as opting out of the bind guard', () => {
+      process.env.DEEPSEEK_API_KEY = 'test-key';
+      process.env.HTTP_ALLOW_UNPROTECTED_BIND = 'true';
+      expect(loadConfig().httpAllowUnprotectedBind).toBe(true);
+
+      for (const value of ['1', 'yes', 'TRUE', '']) {
+        resetConfig();
+        process.env.HTTP_ALLOW_UNPROTECTED_BIND = value;
+        expect(loadConfig().httpAllowUnprotectedBind).toBe(false);
+      }
+    });
   });
 
   describe('getConfig', () => {

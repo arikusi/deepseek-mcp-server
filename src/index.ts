@@ -86,6 +86,7 @@ async function main() {
       host: config.httpHost,
       authToken: config.httpAuthToken,
       allowedHosts: config.httpAllowedHosts,
+      allowUnprotectedBind: config.httpAllowUnprotectedBind,
     });
   } else {
     // Stdio transport (default)

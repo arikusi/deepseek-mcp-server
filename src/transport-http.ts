@@ -25,6 +25,11 @@ export interface HttpAppOptions {
   authToken?: string;
   /** Explicit allowed Host headers — keeps DNS rebinding protection on when binding to 0.0.0.0. */
   allowedHosts?: string[];
+  /**
+   * Bind a wildcard address anyway when neither authToken nor allowedHosts is
+   * set. Off by default; see the refusal in startHttpTransport for why.
+   */
+  allowUnprotectedBind?: boolean;
 }
 
 /** Constant-time string comparison to avoid leaking the token via response timing. */
@@ -143,6 +148,46 @@ export function createHttpApp(serverFactory: () => McpServer, opts: HttpAppOptio
   return app;
 }
 
+/** True for a bind address that reaches every interface. */
+export function isWildcardHost(host: string): boolean {
+  return host === '0.0.0.0' || host === '::';
+}
+
+/**
+ * True when the bind would leave /mcp with neither DNS rebinding protection
+ * nor a credential. The SDK installs Host-header validation only for loopback
+ * hosts or when allowedHosts is passed, so a wildcard bind with neither that
+ * list nor a bearer token is reachable by any web page the operator visits.
+ */
+export function isUnprotectedBind(host: string, opts: HttpAppOptions = {}): boolean {
+  return isWildcardHost(host) && !opts.authToken && !opts.allowedHosts?.length;
+}
+
+/**
+ * Refuse an unprotected wildcard bind unless the operator opted in explicitly.
+ *
+ * Publishing the port on loopback does not make this safe: DNS rebinding
+ * targets the loopback address the victim's own browser already reaches. We
+ * refuse rather than auto-installing a guessed allowlist, because a guess would
+ * start cleanly and then 403 every request from a legitimate reverse proxy,
+ * turning a startup error into a runtime mystery.
+ */
+export function assertBindProtected(host: string, opts: HttpAppOptions = {}): void {
+  if (!isUnprotectedBind(host, opts) || opts.allowUnprotectedBind) return;
+
+  throw new Error(
+    `[DeepSeek MCP] Refusing to bind ${host} without DNS rebinding protection. ` +
+      'The /mcp endpoint holds your DEEPSEEK_API_KEY and would be reachable, ' +
+      'unauthenticated, by any web page the operator visits. Set one of:\n' +
+      '  HTTP_ALLOWED_HOSTS  a comma-separated Host allowlist, e.g. ' +
+      '"localhost,127.0.0.1,[::1]" for a container published on loopback\n' +
+      '  HTTP_AUTH_TOKEN     require `Authorization: Bearer <token>` on /mcp\n' +
+      'or bind loopback directly with HTTP_HOST=127.0.0.1. ' +
+      'HTTP_ALLOW_UNPROTECTED_BIND=true overrides this if you genuinely want an ' +
+      'open endpoint.'
+  );
+}
+
 export async function startHttpTransport(
   serverFactory: () => McpServer,
   port: number,
@@ -151,14 +196,21 @@ export async function startHttpTransport(
   const host = opts.host ?? '127.0.0.1';
   const app = createHttpApp(serverFactory, opts);
 
-  const exposed = host === '0.0.0.0' || host === '::';
-  if (exposed && !opts.authToken) {
+  assertBindProtected(host, opts);
+
+  if (isUnprotectedBind(host, opts)) {
     console.error(
-      `[DeepSeek MCP] SECURITY WARNING: binding to ${host} with no HTTP_AUTH_TOKEN set. ` +
-        'The /mcp endpoint is unauthenticated and reachable from any network that can ' +
-        'reach this port, so anyone could invoke tools and spend your DEEPSEEK_API_KEY. ' +
-        'Set HTTP_AUTH_TOKEN, put an authenticating reverse proxy in front, or bind to ' +
-        '127.0.0.1 via HTTP_HOST.'
+      `[DeepSeek MCP] SECURITY WARNING: binding ${host} with no Host allowlist and no ` +
+        'bearer token, because HTTP_ALLOW_UNPROTECTED_BIND=true. The /mcp endpoint is ' +
+        'unauthenticated and open to DNS rebinding; anyone who reaches it can invoke ' +
+        'tools and spend your DEEPSEEK_API_KEY.'
+    );
+  } else if (isWildcardHost(host) && !opts.authToken) {
+    console.error(
+      `[DeepSeek MCP] Note: binding ${host} with a Host allowlist but no HTTP_AUTH_TOKEN. ` +
+        'Host validation stops DNS rebinding, but any client that can reach this port ' +
+        'and send an allowed Host header can still invoke tools. Set HTTP_AUTH_TOKEN if ' +
+        'the port is reachable beyond this host.'
     );
   }
 

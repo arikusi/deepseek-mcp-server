@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { Server } from 'node:http';
-import { createHttpApp } from './transport-http.js';
+import {
+  createHttpApp,
+  assertBindProtected,
+  isUnprotectedBind,
+  isWildcardHost,
+} from './transport-http.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 let server: Server;
@@ -143,5 +148,56 @@ describe('HTTP Transport', () => {
       const body = await deleteRes.json();
       expect(body.status).toBe('session terminated');
     });
+  });
+});
+
+describe('bind protection', () => {
+  it('treats 0.0.0.0 and :: as wildcard binds, loopback as not', () => {
+    expect(isWildcardHost('0.0.0.0')).toBe(true);
+    expect(isWildcardHost('::')).toBe(true);
+    expect(isWildcardHost('127.0.0.1')).toBe(false);
+    expect(isWildcardHost('localhost')).toBe(false);
+  });
+
+  it('refuses a wildcard bind with no allowlist and no token', () => {
+    // The shipped Docker packaging used to land exactly here: HTTP_HOST=0.0.0.0
+    // with neither HTTP_ALLOWED_HOSTS nor HTTP_AUTH_TOKEN, which left the SDK's
+    // Host-header check uninstalled and /mcp open to DNS rebinding.
+    expect(() => assertBindProtected('0.0.0.0')).toThrow(/Refusing to bind/);
+    expect(() => assertBindProtected('::')).toThrow(/Refusing to bind/);
+  });
+
+  it('names both remedies in the refusal', () => {
+    expect(() => assertBindProtected('0.0.0.0')).toThrow(/HTTP_ALLOWED_HOSTS/);
+    expect(() => assertBindProtected('0.0.0.0')).toThrow(/HTTP_AUTH_TOKEN/);
+  });
+
+  it('allows a wildcard bind once a Host allowlist is set', () => {
+    expect(() =>
+      assertBindProtected('0.0.0.0', { allowedHosts: ['localhost', '127.0.0.1'] })
+    ).not.toThrow();
+  });
+
+  it('allows a wildcard bind once a bearer token is set', () => {
+    expect(() => assertBindProtected('0.0.0.0', { authToken: 'secret' })).not.toThrow();
+  });
+
+  it('does not treat an empty allowlist as protection', () => {
+    expect(() => assertBindProtected('0.0.0.0', { allowedHosts: [] })).toThrow(
+      /Refusing to bind/
+    );
+    expect(isUnprotectedBind('0.0.0.0', { allowedHosts: [] })).toBe(true);
+  });
+
+  it('never blocks a loopback bind', () => {
+    expect(() => assertBindProtected('127.0.0.1')).not.toThrow();
+    expect(isUnprotectedBind('127.0.0.1')).toBe(false);
+  });
+
+  it('honours the explicit opt-out but still reports the bind as unprotected', () => {
+    expect(() =>
+      assertBindProtected('0.0.0.0', { allowUnprotectedBind: true })
+    ).not.toThrow();
+    expect(isUnprotectedBind('0.0.0.0', { allowUnprotectedBind: true })).toBe(true);
   });
 });

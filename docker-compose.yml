@@ -11,6 +11,11 @@ services:
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
       - TRANSPORT=http
       - HTTP_PORT=3000
+      # Host-header allowlist. The image already defaults this to
+      # localhost,127.0.0.1,[::1], which matches the loopback publish above.
+      # Publishing under a real hostname? Add it here, or the server will
+      # answer 403 to every request that carries it.
+      # - HTTP_ALLOWED_HOSTS=mcp.example.com
       # Require `Authorization: Bearer <token>` on /mcp. Uncomment and set a
       # strong value before exposing the port beyond localhost.
       # - HTTP_AUTH_TOKEN=${HTTP_AUTH_TOKEN}
