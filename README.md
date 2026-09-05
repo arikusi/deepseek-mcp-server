@@ -513,7 +513,8 @@ The server is configured via environment variables. All settings except `DEEPSEE
 | `HTTP_PORT` | `3000` | HTTP server port (when TRANSPORT=http) |
 | `HTTP_HOST` | `127.0.0.1` | Bind address for HTTP transport. Loopback by default so a fresh run is not exposed. Set to `0.0.0.0` to accept remote connections (do this only with auth or a proxy in front) |
 | `HTTP_AUTH_TOKEN` | _(unset)_ | When set, `POST /mcp` requires `Authorization: Bearer <token>`. `/health` stays open. Strongly recommended whenever the port is reachable beyond localhost |
-| `HTTP_ALLOWED_HOSTS` | _(unset)_ | Comma-separated list of allowed `Host` headers for DNS rebinding protection when binding to `0.0.0.0` (e.g. `mcp.example.com,localhost`) |
+| `HTTP_ALLOWED_HOSTS` | _(unset)_ | Comma-separated list of allowed `Host` headers for DNS rebinding protection when binding to `0.0.0.0` (e.g. `mcp.example.com,localhost`). The Docker image defaults it to `localhost,127.0.0.1,[::1]` |
+| `HTTP_ALLOW_UNPROTECTED_BIND` | `false` | Set to `true` to bind `0.0.0.0` with neither `HTTP_ALLOWED_HOSTS` nor `HTTP_AUTH_TOKEN`. The server otherwise refuses to start in that combination |
 
 **Example with custom config:**
 ```bash
@@ -652,7 +653,7 @@ endpoint must not sit open on a public interface. The defaults are built around
 this:
 
 1. `HTTP_HOST` defaults to `127.0.0.1`, so a plain run only listens on loopback and the SDK's DNS rebinding protection is active. Nothing off the machine can reach it.
-2. To accept remote connections, set `HTTP_HOST=0.0.0.0`, but then set `HTTP_AUTH_TOKEN` as well so `/mcp` requires `Authorization: Bearer <token>`. If you bind to `0.0.0.0` without a token, the server prints a loud warning on startup.
+2. To accept remote connections, set `HTTP_HOST=0.0.0.0` **and** either `HTTP_AUTH_TOKEN` (so `/mcp` requires `Authorization: Bearer <token>`) or `HTTP_ALLOWED_HOSTS`. Binding `0.0.0.0` with neither turns the SDK's `Host`-header check off entirely, which leaves `/mcp` open to DNS rebinding from any web page you visit, so the server refuses to start rather than warn. `HTTP_ALLOW_UNPROTECTED_BIND=true` overrides the refusal if you really want an open endpoint.
 3. For an internet-facing deployment, put an authenticating reverse proxy with TLS in front and set `HTTP_ALLOWED_HOSTS` to your real hostname(s).
 
 ```bash
@@ -699,8 +700,14 @@ DEEPSEEK_API_KEY=your-key HTTP_AUTH_TOKEN=your-token docker compose up -d
 The image runs HTTP transport on port 3000 with a health check. Inside the
 container it binds `0.0.0.0` (required for the port mapping to work), so control
 exposure at the publish layer: the example above and the bundled
-`docker-compose.yml` publish to `127.0.0.1` only. If you publish the port on a
-public interface, set `HTTP_AUTH_TOKEN`.
+`docker-compose.yml` publish to `127.0.0.1` only.
+
+Publishing on loopback is not on its own enough, because DNS rebinding targets
+the loopback address your own browser can already reach. The image therefore
+ships `HTTP_ALLOWED_HOSTS=localhost,127.0.0.1,[::1]`, which keeps the `Host`
+check installed. Publishing under a real hostname? Add it to that list, or every
+request carrying it gets a 403. Publishing on a public interface? Set
+`HTTP_AUTH_TOKEN` as well.
 
 ## Troubleshooting
 

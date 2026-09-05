@@ -30,6 +30,10 @@ const ConfigSchema = z.object({
   httpHost: z.string().min(1).default('127.0.0.1'),
   httpAuthToken: z.string().min(1).optional(),
   httpAllowedHosts: z.array(z.string().min(1)).optional(),
+  // Escape hatch for binding a wildcard address with no Host allowlist and no
+  // bearer token. Off by default: that combination is unsafe (see
+  // startHttpTransport), so an operator has to ask for it explicitly.
+  httpAllowUnprotectedBind: z.boolean().default(false),
 });
 
 export type Config = z.infer<typeof ConfigSchema>;
@@ -84,6 +88,7 @@ export function loadConfig(): Config {
     httpAllowedHosts: process.env.HTTP_ALLOWED_HOSTS
       ? process.env.HTTP_ALLOWED_HOSTS.split(',').map((h) => h.trim()).filter(Boolean)
       : undefined,
+    httpAllowUnprotectedBind: process.env.HTTP_ALLOW_UNPROTECTED_BIND === 'true',
   };
 
   const result = ConfigSchema.safeParse(raw);
