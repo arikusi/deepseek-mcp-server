@@ -13,7 +13,7 @@
   <a href="https://www.npmjs.com/package/@arikusi/deepseek-mcp-server"><img src="https://img.shields.io/npm/dm/@arikusi/deepseek-mcp-server.svg" alt="npm downloads" /></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/node/v/@arikusi/deepseek-mcp-server.svg" alt="Node.js Version" /></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-6.0-blue.svg" alt="TypeScript" /></a>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-7.0-blue.svg" alt="TypeScript" /></a>
   <a href="https://api-docs.deepseek.com"><img src="https://img.shields.io/badge/DeepSeek-V4-7c3aed.svg" alt="DeepSeek V4" /></a>
   <a href="https://github.com/arikusi/deepseek-mcp-server/actions"><img src="https://github.com/arikusi/deepseek-mcp-server/workflows/CI/badge.svg" alt="Build Status" /></a>
 </p>
@@ -25,7 +25,6 @@
 
 <p align="center">
   <a href="https://registry.modelcontextprotocol.io/?q=io.github.arikusi"><img src="https://img.shields.io/badge/Official_MCP_Registry-active-brightgreen" alt="Official MCP Registry" /></a>
-  <a href="https://smithery.ai/servers/arikusi/deepseek-mcp-server"><img src="https://smithery.ai/badge/@arikusi/deepseek-mcp-server" alt="Smithery" /></a>
   <a href="https://lobehub.com/mcp/arikusi-deepseek-mcp-server"><img src="https://lobehub.com/badge/mcp/arikusi-deepseek-mcp-server" alt="LobeHub" /></a>
 </p>
 
@@ -105,7 +104,7 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 - **Remote Endpoint**: Hosted at `deepseek-mcp.tahirl.com/mcp` — BYOK (Bring Your Own Key), no install needed
 - **HTTP Transport**: Self-hosted remote access via Streamable HTTP with `TRANSPORT=http`
 - **Docker Ready**: Multi-stage Dockerfile with health checks for containerized deployment
-- **Tested**: 280 tests, ~89% line coverage
+- **Tested**: 340 tests, ~92% line coverage
 - **Type-Safe**: Full TypeScript implementation
 - **MCP Compatible**: Works with any MCP-compatible CLI (Claude Code, Gemini CLI, etc.)
 
