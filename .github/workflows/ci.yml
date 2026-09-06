@@ -125,3 +125,36 @@ jobs:
           sleep 5
           curl -f http://localhost:3000/health || exit 1
           docker stop test-mcp
+
+  worker:
+    name: Worker Build Check
+    runs-on: ubuntu-latest
+
+    # The Cloudflare Worker is a separate npm project that nothing else in this
+    # workflow touches, and Workers Builds deploys it to production on every
+    # merge to main. Without this job a worker regression reaches production
+    # with no repo-side gate at all.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22.x'
+          cache: 'npm'
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: worker
+
+      - name: Run TypeScript compiler check
+        run: npm run typecheck
+        working-directory: worker
+
+      - name: Build worker (dry-run deploy, no credentials needed)
+        run: npx wrangler deploy --dry-run
+        working-directory: worker
+        env:
+          WRANGLER_SEND_METRICS: 'false'
