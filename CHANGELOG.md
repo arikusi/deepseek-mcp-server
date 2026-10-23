@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-10-23
+
+### Security
+- **Tool arguments are now capped at 20,000 elements (GHSA-46jr-4wx8-v453, high, upstream).** In MCP SDK versions before 1.32.0, one HTTP request inside the 4 MiB body limit could make the server count and validate array elements and object keys until the heap ran out. SDK 1.32 adds a `maxToolInputElements` option to fix it, but leaves it off by default, so the SDK bump alone would have closed the Dependabot alert without closing the hole. Both the npm server and the hosted worker now set it. The worker was the exposed surface: it accepts any bearer string and passes the body to the SDK, and `deepseek_chat` takes `messages`, `tools` and `response_schema`, the kind of input the advisory describes. A call over the cap now returns an `isError` result before anything reaches DeepSeek. The 4 MiB body limit is unchanged on purpose, since a 1M-token context makes multi-megabyte prompts legitimate.
+- `@modelcontextprotocol/sdk` updated to 1.32. The other SDK advisories in this range (experimental tasks, OAuth client, bearer auth, cross-origin redirects) cover code paths this server does not use. Transitive updates: `proxy-addr` 2.0.8, `hono` 4.13.13, `ip-address` 10.7.2, and on the dev side `vite`, `source-map-js`, `undici` and `sharp`. The `proxy-addr` and `hono` advisories need `trust proxy`, `serveStatic` or `hono/jsx`, none of which this server uses, and the dev-side ones never ship in the package; they are patched all the same.
+
+### Changed
+- **Default model is now `deepseek-flash`.** DeepSeek renamed its Flash model on 2026-09-10; `deepseek-flash` is served by DeepSeek-V4.1-Flash-1017 since 2026-10-17. It was not in our model enum, so the name DeepSeek tells people to use could not be selected. `deepseek-v4-flash` is now a legacy name next to `deepseek-chat` and `deepseek-reasoner`. All three are still accepted and sent to the API as `deepseek-flash`, which is what DeepSeek serves them with anyway. A saved `DEFAULT_MODEL=deepseek-v4-flash` keeps working. `deepseek-v4-pro` is unchanged.
+- **Costs are priced at the peak or off-peak rate.** DeepSeek bills 01:00-04:00 and 06:00-10:00 UTC on weekdays at twice the off-peak rate. The reported cost now uses the rate in force when the request ran, and both tools report it as `pricing_tier` (in `structuredContent.request` for `deepseek_chat`). The `deepseek://models` resource lists both tiers. Chinese public holidays bill off-peak and are not modelled.
+- `vitest` 5.
+
+### Fixed
+- **The pricing table was two reprices out of date (#81).** DeepSeek repriced on 2026-08-16 and again on 2026-09-10, and the table still had the 2.0.0 numbers. Flash output was reported at $0.28 per 1M tokens against a real $0.60 off-peak and $1.20 peak; v4-pro cache hits at $0.003625 against $0.022. The table now matches DeepSeek's pricing page as of 2026-10-23. Reported by @xyzs996, who also proposed the tier design.
+- The API answers every Flash request with `"model": "deepseek-flash"`, which is what the cost lookup receives. Since September that name had no entry, so every Flash cost went through the default entry. It now has one.
+
 ## [2.3.0] - 2026-09-05
 
 ### Security
