@@ -15,20 +15,53 @@ const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 const DEEPSEEK_FIM_URL = 'https://api.deepseek.com/beta/completions';
 const FIM_MAX_TOKENS = 4096;
 
-// Pricing per 1M tokens (DeepSeek V4). chat/reasoner aliases resolve to v4-flash.
+// Pricing per 1M tokens (USD), off-peak and peak. Keep in step with the npm
+// server's table in src/cost.ts, which documents the source and the schedule.
+// The legacy names are served by deepseek-flash at the Flash price.
 interface ModelPricing {
   cacheHit: number;
   cacheMiss: number;
   output: number;
 }
-const MODEL_PRICING: Record<string, ModelPricing> = {
-  'deepseek-v4-flash': { cacheHit: 0.0028, cacheMiss: 0.14, output: 0.28 },
-  'deepseek-v4-pro': { cacheHit: 0.003625, cacheMiss: 0.435, output: 0.87 },
+type PricingTier = 'peak' | 'off-peak';
+const FLASH_PRICING: Record<PricingTier, ModelPricing> = {
+  'off-peak': { cacheHit: 0.003, cacheMiss: 0.15, output: 0.6 },
+  peak: { cacheHit: 0.006, cacheMiss: 0.3, output: 1.2 },
 };
-const DEFAULT_PRICING: ModelPricing = MODEL_PRICING['deepseek-v4-flash'];
-function getPricing(model: string): ModelPricing {
-  return MODEL_PRICING[model] || DEFAULT_PRICING;
+const MODEL_PRICING: Record<string, Record<PricingTier, ModelPricing>> = {
+  'deepseek-flash': FLASH_PRICING,
+  'deepseek-v4-pro': {
+    'off-peak': { cacheHit: 0.022, cacheMiss: 0.66, output: 1.98 },
+    peak: { cacheHit: 0.044, cacheMiss: 1.32, output: 3.96 },
+  },
+};
+
+// Peak is 01:00-04:00 and 06:00-10:00 UTC, Monday to Friday.
+function getPricingTier(at: Date = new Date()): PricingTier {
+  const day = at.getUTCDay();
+  if (day === 0 || day === 6) return 'off-peak';
+  const hour = at.getUTCHours();
+  return (hour >= 1 && hour < 4) || (hour >= 6 && hour < 10) ? 'peak' : 'off-peak';
 }
+
+function getPricing(model: string, tier: PricingTier): ModelPricing {
+  return (MODEL_PRICING[model] || FLASH_PRICING)[tier];
+}
+
+const MODEL_IDS = [
+  'deepseek-flash',
+  'deepseek-v4-pro',
+  'deepseek-v4-flash',
+  'deepseek-chat',
+  'deepseek-reasoner',
+] as const;
+
+// Legacy names DeepSeek now serves with deepseek-flash
+const LEGACY_FLASH_MODELS: ReadonlySet<string> = new Set([
+  'deepseek-v4-flash',
+  'deepseek-chat',
+  'deepseek-reasoner',
+]);
 
 function extractApiKey(request: Request): string | null {
   const auth = request.headers.get('authorization');
@@ -36,8 +69,12 @@ function extractApiKey(request: Request): string | null {
   return auth.slice(7);
 }
 
-function calculateCost(usage: Record<string, number>, model: string): { totalCost: number; formatted: string } {
-  const pricing = getPricing(model);
+function calculateCost(
+  usage: Record<string, number>,
+  model: string
+): { totalCost: number; formatted: string; tier: PricingTier } {
+  const tier = getPricingTier();
+  const pricing = getPricing(model, tier);
   const cacheHit = usage.prompt_cache_hit_tokens || 0;
   const cacheMiss = usage.prompt_cache_miss_tokens || usage.prompt_tokens || 0;
   const output = usage.completion_tokens || 0;
@@ -47,12 +84,12 @@ function calculateCost(usage: Record<string, number>, model: string): { totalCos
     (cacheMiss * pricing.cacheMiss) / 1_000_000 +
     (output * pricing.output) / 1_000_000;
 
-  let formatted = `$${totalCost.toFixed(6)}`;
+  let formatted = `$${totalCost.toFixed(6)} at ${tier} rates`;
   if (cacheHit > 0) {
     const ratio = ((cacheHit / (cacheHit + cacheMiss)) * 100).toFixed(0);
     formatted += ` (cache hit: ${ratio}%)`;
   }
-  return { totalCost, formatted };
+  return { totalCost, formatted, tier };
 }
 
 // Same cap as the npm server (src/server.ts). The worker is reachable by anyone
@@ -68,7 +105,7 @@ function createMcpServer(apiKey: string): McpServer {
 
   server.tool(
     'deepseek_chat',
-    'Chat with DeepSeek V4 models (deepseek-v4-flash, deepseek-v4-pro; chat/reasoner accepted as aliases). Supports function calling, thinking mode, JSON output, cost tracking.',
+    'Chat with DeepSeek models (deepseek-flash, deepseek-v4-pro; deepseek-v4-flash, deepseek-chat and deepseek-reasoner accepted as legacy names). Supports function calling, thinking mode, JSON output, cost tracking.',
     {
       messages: z
         .array(
@@ -81,9 +118,9 @@ function createMcpServer(apiKey: string): McpServer {
         .min(1)
         .describe('Conversation messages'),
       model: z
-        .enum(['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'])
-        .default('deepseek-v4-flash')
-        .describe('Model to use. v4-flash (default) or v4-pro, both 1M context. Non-thinking by default. Deprecated aliases (still accepted, prefer v4 names): deepseek-chat -> v4-flash non-thinking, deepseek-reasoner -> v4-flash thinking'),
+        .enum(MODEL_IDS)
+        .default('deepseek-flash')
+        .describe('Model to use. deepseek-flash (default, V4.1 Flash) or deepseek-v4-pro, both 1M context. Non-thinking by default. Legacy names (still accepted, prefer deepseek-flash): deepseek-v4-flash -> deepseek-flash, deepseek-chat -> deepseek-flash non-thinking, deepseek-reasoner -> deepseek-flash thinking'),
       temperature: z.number().min(0).max(2).optional().describe('Sampling temperature (0-2). Ignored in thinking mode'),
       max_tokens: z.number().min(1).max(384000).optional().describe('Max tokens to generate (up to 384000)'),
       stream: z.boolean().default(false).describe('Enable streaming (accumulated response returned)'),
@@ -130,23 +167,15 @@ function createMcpServer(apiKey: string): McpServer {
     },
     async (params) => {
       try {
-        // Resolve the user-facing model + thinking flag for the V4 API.
-        // v4-flash/v4-pro are the live models; chat/reasoner are compatibility
-        // aliases (retired by the API on 2026-07-24) that resolve to v4-flash.
+        // Resolve the user-facing model + thinking flag for the API.
+        // deepseek-flash/deepseek-v4-pro are the live models; the legacy names
+        // resolve to deepseek-flash, and reasoner always thinks.
         // The API defaults thinking to enabled, so we always send an explicit flag.
-        let model: string;
-        let thinking: { type: 'enabled' | 'disabled' };
         const isReasonerRouted = params.model === 'deepseek-reasoner';
-        if (isReasonerRouted) {
-          model = 'deepseek-v4-flash';
-          thinking = { type: 'enabled' };
-        } else if (params.model === 'deepseek-chat') {
-          model = 'deepseek-v4-flash';
-          thinking = params.thinking ?? { type: 'disabled' };
-        } else {
-          model = params.model;
-          thinking = params.thinking ?? { type: 'disabled' };
-        }
+        const model = LEGACY_FLASH_MODELS.has(params.model) ? 'deepseek-flash' : params.model;
+        const thinking: { type: 'enabled' | 'disabled' } = isReasonerRouted
+          ? { type: 'enabled' }
+          : params.thinking ?? { type: 'disabled' };
 
         const isThinkingMode = thinking.type === 'enabled';
 
@@ -264,7 +293,7 @@ function createMcpServer(apiKey: string): McpServer {
         text += `- **Model:** ${responseModel || model}\n`;
         text += `- **Cost:** ${cost.formatted}`;
         if (isReasonerRouted) {
-          text += `\n- **Routed:** deepseek-reasoner -> deepseek-v4-flash + thinking`;
+          text += `\n- **Routed:** deepseek-reasoner -> deepseek-flash + thinking`;
         }
 
         return {
@@ -278,6 +307,7 @@ function createMcpServer(apiKey: string): McpServer {
             tool_calls: toolCallsArray.length > 0 ? toolCallsArray : undefined,
             ...(isReasonerRouted ? { routed_from: 'deepseek-reasoner' } : {}),
             cost_usd: parseFloat(cost.totalCost.toFixed(6)),
+            pricing_tier: cost.tier,
           } as unknown as Record<string, unknown>,
         };
       } catch (error: unknown) {
@@ -292,7 +322,7 @@ function createMcpServer(apiKey: string): McpServer {
 
   server.tool(
     'deepseek_fim',
-    'Fill-in-the-Middle (FIM) completion with DeepSeek V4. Provide a prompt (prefix) and an optional suffix; the model completes the text in between. Ideal for code completion and content infilling. Runs in non-thinking mode on the Beta endpoint; output is capped at 4096 tokens. The deprecated aliases deepseek-chat / deepseek-reasoner are still accepted and resolve to deepseek-v4-flash. Includes cost tracking.',
+    'Fill-in-the-Middle (FIM) completion with DeepSeek. Provide a prompt (prefix) and an optional suffix; the model completes the text in between. Ideal for code completion and content infilling. Runs in non-thinking mode on the Beta endpoint; output is capped at 4096 tokens. The legacy names deepseek-v4-flash / deepseek-chat / deepseek-reasoner are still accepted and resolve to deepseek-flash. Includes cost tracking.',
     {
       prompt: z
         .string()
@@ -303,9 +333,9 @@ function createMcpServer(apiKey: string): McpServer {
         .optional()
         .describe('Optional suffix text after the content to generate. The model fills the gap between prompt and suffix.'),
       model: z
-        .enum(['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'])
-        .default('deepseek-v4-flash')
-        .describe('Model to use. v4-flash (default) or v4-pro. Deprecated aliases deepseek-chat / deepseek-reasoner are still accepted and resolve to v4-flash. FIM is always non-thinking.'),
+        .enum(MODEL_IDS)
+        .default('deepseek-flash')
+        .describe('Model to use. deepseek-flash (default, V4.1 Flash) or deepseek-v4-pro. Legacy names deepseek-v4-flash / deepseek-chat / deepseek-reasoner are still accepted and resolve to deepseek-flash. FIM is always non-thinking.'),
       max_tokens: z
         .number()
         .min(1)
@@ -327,12 +357,9 @@ function createMcpServer(apiKey: string): McpServer {
     },
     async (params) => {
       try {
-        // Aliases collapse to v4-flash; FIM has no thinking mode.
-        const routedFrom =
-          params.model === 'deepseek-chat' || params.model === 'deepseek-reasoner'
-            ? params.model
-            : undefined;
-        const model = routedFrom ? 'deepseek-v4-flash' : params.model;
+        // Legacy names collapse to deepseek-flash; FIM has no thinking mode.
+        const routedFrom = LEGACY_FLASH_MODELS.has(params.model) ? params.model : undefined;
+        const model = routedFrom ? 'deepseek-flash' : params.model;
 
         const body: Record<string, unknown> = {
           model,
@@ -378,7 +405,7 @@ function createMcpServer(apiKey: string): McpServer {
         text += `- **Model:** ${responseModel}\n`;
         text += `- **Cost:** ${cost.formatted}`;
         if (routedFrom) {
-          text += `\n- **Routed:** ${routedFrom} -> deepseek-v4-flash`;
+          text += `\n- **Routed:** ${routedFrom} -> deepseek-flash`;
         }
 
         return {
@@ -389,6 +416,7 @@ function createMcpServer(apiKey: string): McpServer {
             usage,
             finish_reason: choice?.finish_reason || 'stop',
             cost_usd: parseFloat(cost.totalCost.toFixed(6)),
+            pricing_tier: cost.tier,
             ...(routedFrom ? { routed_from: routedFrom } : {}),
           } as unknown as Record<string, unknown>,
         };
@@ -425,13 +453,13 @@ export default {
       return Response.json({
         name: 'deepseek-mcp-server',
         version: VERSION,
-        description: 'MCP server for DeepSeek V4 AI — chat, reasoning, function calling, JSON mode, fill-in-the-middle (FIM), cost tracking',
+        description: 'MCP server for DeepSeek AI — chat, reasoning, function calling, JSON mode, fill-in-the-middle (FIM), cost tracking',
         transport: { type: 'streamable-http', url: 'https://deepseek-mcp.tahirl.com/mcp' },
         capabilities: { tools: true, prompts: false, resources: false },
         tools: [
           {
             name: 'deepseek_chat',
-            description: 'Chat with DeepSeek V4 models (deepseek-v4-flash, deepseek-v4-pro; chat/reasoner accepted as aliases). Supports function calling, thinking mode, JSON output, cost tracking.',
+            description: 'Chat with DeepSeek models (deepseek-flash, deepseek-v4-pro; deepseek-v4-flash, deepseek-chat and deepseek-reasoner accepted as legacy names). Supports function calling, thinking mode, JSON output, cost tracking.',
             annotations: {
               title: 'DeepSeek Chat',
               readOnlyHint: true,
@@ -444,7 +472,7 @@ export default {
               required: ['messages'],
               properties: {
                 messages: { type: 'array', description: 'Conversation messages', items: { type: 'object' } },
-                model: { type: 'string', enum: ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'], default: 'deepseek-v4-flash' },
+                model: { type: 'string', enum: [...MODEL_IDS], default: 'deepseek-flash' },
                 temperature: { type: 'number', description: 'Sampling temperature (0-2)' },
                 max_tokens: { type: 'number', description: 'Max tokens to generate (up to 384000)' },
                 stream: { type: 'boolean', default: false },
@@ -458,7 +486,7 @@ export default {
           },
           {
             name: 'deepseek_fim',
-            description: 'Fill-in-the-Middle (FIM) completion with DeepSeek V4. Provide a prompt (prefix) and an optional suffix; the model completes the text in between. Ideal for code completion and content infilling. Non-thinking, Beta endpoint, output capped at 4096 tokens.',
+            description: 'Fill-in-the-Middle (FIM) completion with DeepSeek. Provide a prompt (prefix) and an optional suffix; the model completes the text in between. Ideal for code completion and content infilling. Non-thinking, Beta endpoint, output capped at 4096 tokens.',
             annotations: {
               title: 'DeepSeek FIM',
               readOnlyHint: true,
@@ -472,7 +500,7 @@ export default {
               properties: {
                 prompt: { type: 'string', description: 'Prefix text before the content to generate' },
                 suffix: { type: 'string', description: 'Optional suffix text after the content to generate' },
-                model: { type: 'string', enum: ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-chat', 'deepseek-reasoner'], default: 'deepseek-v4-flash' },
+                model: { type: 'string', enum: [...MODEL_IDS], default: 'deepseek-flash' },
                 max_tokens: { type: 'number', description: 'Max tokens to generate (up to 4096)' },
                 temperature: { type: 'number', description: 'Sampling temperature (0-2)' },
                 stop: { description: 'Stop sequence(s): a string or an array of up to 16 strings' },

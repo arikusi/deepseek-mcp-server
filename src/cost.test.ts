@@ -1,156 +1,145 @@
 import { describe, it, expect } from 'vitest';
-import { calculateCost, formatCost, PRICING, MODEL_PRICING, DEFAULT_PRICING, getPricing } from './cost.js';
+import {
+  calculateCost,
+  formatCost,
+  MODEL_PRICING,
+  DEFAULT_PRICING,
+  getPricing,
+  getPricingTier,
+  getTieredPricing,
+} from './cost.js';
+
+// Pinned instants so no test depends on when it runs.
+const OFF_PEAK = new Date('2026-10-22T12:00:00Z'); // Thursday, outside both windows
+const PEAK = new Date('2026-10-22T02:00:00Z'); // Thursday, inside 01:00-04:00
 
 describe('cost', () => {
-  describe('PRICING', () => {
-    it('should have v4-flash default pricing', () => {
-      expect(PRICING.cache_hit).toBe(0.0028);
-      expect(PRICING.cache_miss).toBe(0.14);
-      expect(PRICING.output).toBe(0.28);
+  describe('MODEL_PRICING', () => {
+    it('has the published deepseek-flash rates for both tiers', () => {
+      expect(MODEL_PRICING['deepseek-flash']['off-peak']).toEqual({ cache_hit: 0.003, cache_miss: 0.15, output: 0.6 });
+      expect(MODEL_PRICING['deepseek-flash'].peak).toEqual({ cache_hit: 0.006, cache_miss: 0.3, output: 1.2 });
     });
 
-    it('should have PRICING as alias for DEFAULT_PRICING', () => {
-      expect(PRICING).toBe(DEFAULT_PRICING);
+    it('has the published deepseek-v4-pro rates for both tiers', () => {
+      expect(MODEL_PRICING['deepseek-v4-pro']['off-peak']).toEqual({ cache_hit: 0.022, cache_miss: 0.66, output: 1.98 });
+      expect(MODEL_PRICING['deepseek-v4-pro'].peak).toEqual({ cache_hit: 0.044, cache_miss: 1.32, output: 3.96 });
+    });
+
+    it('bills every peak rate at exactly twice off-peak', () => {
+      for (const tiers of Object.values(MODEL_PRICING)) {
+        for (const key of ['cache_hit', 'cache_miss', 'output'] as const) {
+          expect(tiers.peak[key]).toBeCloseTo(tiers['off-peak'][key] * 2, 10);
+        }
+      }
+    });
+
+    it('prices the legacy names as deepseek-flash', () => {
+      for (const legacy of ['deepseek-v4-flash', 'deepseek-chat', 'deepseek-reasoner']) {
+        expect(MODEL_PRICING[legacy]).toBe(MODEL_PRICING['deepseek-flash']);
+      }
+    });
+
+    it('defaults to flash pricing', () => {
+      expect(DEFAULT_PRICING).toBe(MODEL_PRICING['deepseek-flash']);
     });
   });
 
-  describe('MODEL_PRICING', () => {
-    it('should have pricing for deepseek-v4-flash', () => {
-      expect(MODEL_PRICING['deepseek-v4-flash']).toBeDefined();
-      expect(MODEL_PRICING['deepseek-v4-flash'].cache_hit).toBe(0.0028);
-      expect(MODEL_PRICING['deepseek-v4-flash'].cache_miss).toBe(0.14);
-      expect(MODEL_PRICING['deepseek-v4-flash'].output).toBe(0.28);
+  describe('getPricingTier', () => {
+    it.each([
+      ['2026-10-22T00:59:59Z', 'off-peak'],
+      ['2026-10-22T01:00:00Z', 'peak'],
+      ['2026-10-22T03:59:59Z', 'peak'],
+      ['2026-10-22T04:00:00Z', 'off-peak'],
+      ['2026-10-22T05:59:59Z', 'off-peak'],
+      ['2026-10-22T06:00:00Z', 'peak'],
+      ['2026-10-22T09:59:59Z', 'peak'],
+      ['2026-10-22T10:00:00Z', 'off-peak'],
+      ['2026-10-22T23:00:00Z', 'off-peak'],
+    ])('treats %s (Thursday) as %s', (iso, tier) => {
+      expect(getPricingTier(new Date(iso))).toBe(tier);
     });
 
-    it('should have pricing for deepseek-v4-pro', () => {
-      expect(MODEL_PRICING['deepseek-v4-pro']).toBeDefined();
-      expect(MODEL_PRICING['deepseek-v4-pro'].cache_hit).toBe(0.003625);
-      expect(MODEL_PRICING['deepseek-v4-pro'].cache_miss).toBe(0.435);
-      expect(MODEL_PRICING['deepseek-v4-pro'].output).toBe(0.87);
+    it('bills Monday and Friday windows as peak', () => {
+      expect(getPricingTier(new Date('2026-10-19T02:00:00Z'))).toBe('peak');
+      expect(getPricingTier(new Date('2026-10-23T07:00:00Z'))).toBe('peak');
     });
 
-    it('should map deepseek-chat alias to v4-flash pricing', () => {
-      expect(MODEL_PRICING['deepseek-chat'].cache_hit).toBe(0.0028);
-      expect(MODEL_PRICING['deepseek-chat'].output).toBe(0.28);
+    it('bills the whole weekend off-peak, windows included', () => {
+      expect(getPricingTier(new Date('2026-10-24T02:00:00Z'))).toBe('off-peak');
+      expect(getPricingTier(new Date('2026-10-25T07:00:00Z'))).toBe('off-peak');
     });
 
-    it('should map deepseek-reasoner alias to v4-flash pricing', () => {
-      expect(MODEL_PRICING['deepseek-reasoner'].output).toBe(0.28);
+    it('reads the clock when no instant is given', () => {
+      expect(['peak', 'off-peak']).toContain(getPricingTier());
     });
   });
 
   describe('getPricing', () => {
-    it('should return model-specific pricing for known models', () => {
-      const pricing = getPricing('deepseek-v4-pro');
-      expect(pricing).toBe(MODEL_PRICING['deepseek-v4-pro']);
+    it('returns the tier that applies at the given instant', () => {
+      expect(getPricing('deepseek-v4-pro', OFF_PEAK)).toBe(MODEL_PRICING['deepseek-v4-pro']['off-peak']);
+      expect(getPricing('deepseek-v4-pro', PEAK)).toBe(MODEL_PRICING['deepseek-v4-pro'].peak);
     });
 
-    it('should return DEFAULT_PRICING for unknown models', () => {
-      const pricing = getPricing('some-future-model');
-      expect(pricing).toBe(DEFAULT_PRICING);
-    });
-
-    it('should return DEFAULT_PRICING when model is undefined', () => {
-      const pricing = getPricing();
-      expect(pricing).toBe(DEFAULT_PRICING);
+    it('falls back to flash pricing for unknown or missing models', () => {
+      expect(getPricing('some-future-model', OFF_PEAK)).toBe(DEFAULT_PRICING['off-peak']);
+      expect(getPricing(undefined, PEAK)).toBe(DEFAULT_PRICING.peak);
+      expect(getTieredPricing('some-future-model')).toBe(DEFAULT_PRICING);
     });
   });
 
   describe('calculateCost', () => {
-    it('should calculate cost without cache fields (backward compat)', () => {
-      const result = calculateCost({
-        prompt_tokens: 1_000_000,
-        completion_tokens: 1_000_000,
-      });
-      // 1M input * $0.14/1M + 1M output * $0.28/1M = $0.42 (v4-flash default)
-      expect(result.inputCost).toBeCloseTo(0.14);
-      expect(result.outputCost).toBeCloseTo(0.28);
-      expect(result.totalCost).toBeCloseTo(0.42);
+    it('treats all input as cache miss when the cache fields are absent', () => {
+      const result = calculateCost({ prompt_tokens: 1_000_000, completion_tokens: 1_000_000 }, 'deepseek-flash', OFF_PEAK);
+      // 1M * $0.15 + 1M * $0.60
+      expect(result.inputCost).toBeCloseTo(0.15);
+      expect(result.outputCost).toBeCloseTo(0.6);
+      expect(result.totalCost).toBeCloseTo(0.75);
       expect(result.cacheHitRatio).toBeUndefined();
       expect(result.cacheSavings).toBeUndefined();
+      expect(result.tier).toBe('off-peak');
     });
 
-    it('should calculate cost with cache hit/miss fields', () => {
+    it('doubles the bill inside the peak window', () => {
+      const usage = { prompt_tokens: 1_000_000, completion_tokens: 1_000_000 };
+      const off = calculateCost(usage, 'deepseek-flash', OFF_PEAK);
+      const peak = calculateCost(usage, 'deepseek-flash', PEAK);
+      expect(peak.totalCost).toBeCloseTo(off.totalCost * 2);
+      expect(peak.tier).toBe('peak');
+    });
+
+    it('splits input by cache hit and miss', () => {
       const result = calculateCost({
         prompt_tokens: 1_000_000,
         completion_tokens: 1_000_000,
         prompt_cache_hit_tokens: 800_000,
         prompt_cache_miss_tokens: 200_000,
-      });
-      // Hit: 800K * $0.0028/1M = $0.00224
-      // Miss: 200K * $0.14/1M = $0.028
-      // Input: $0.03024
-      // Output: 1M * $0.28/1M = $0.28
-      expect(result.inputCost).toBeCloseTo(0.03024);
-      expect(result.outputCost).toBeCloseTo(0.28);
-      expect(result.totalCost).toBeCloseTo(0.31024);
+      }, 'deepseek-flash', OFF_PEAK);
+      // Hit 800K * $0.003 = $0.0024, miss 200K * $0.15 = $0.03
+      expect(result.inputCost).toBeCloseTo(0.0324);
+      expect(result.outputCost).toBeCloseTo(0.6);
+      expect(result.totalCost).toBeCloseTo(0.6324);
       expect(result.cacheHitRatio).toBeCloseTo(0.8);
-      // Savings: all-miss ($0.14) - actual ($0.03024) = $0.10976
-      expect(result.cacheSavings).toBeCloseTo(0.10976);
+      // All-miss $0.15 minus actual $0.0324
+      expect(result.cacheSavings).toBeCloseTo(0.1176);
     });
 
-    it('should calculate cost for smaller token counts', () => {
-      const result = calculateCost({
-        prompt_tokens: 1000,
-        completion_tokens: 500,
-      });
-      const expectedInput = (1000 / 1_000_000) * 0.14;
-      const expectedOutput = (500 / 1_000_000) * 0.28;
-      expect(result.totalCost).toBeCloseTo(expectedInput + expectedOutput);
+    it('returns 0 for zero tokens', () => {
+      expect(calculateCost({ prompt_tokens: 0, completion_tokens: 0 }).totalCost).toBe(0);
     });
 
-    it('should return 0 for zero tokens', () => {
-      const result = calculateCost({
-        prompt_tokens: 0,
-        completion_tokens: 0,
-      });
-      expect(result.totalCost).toBe(0);
-    });
-
-    it('should handle only prompt tokens', () => {
-      const result = calculateCost({
-        prompt_tokens: 1_000_000,
-        completion_tokens: 0,
-      });
-      expect(result.totalCost).toBeCloseTo(0.14);
-    });
-
-    it('should handle only completion tokens', () => {
-      const result = calculateCost({
-        prompt_tokens: 0,
-        completion_tokens: 1_000_000,
-      });
-      expect(result.totalCost).toBeCloseTo(0.28);
-    });
-
-    it('should handle 100% cache hit', () => {
+    it('handles a full cache hit', () => {
       const result = calculateCost({
         prompt_tokens: 1_000_000,
         completion_tokens: 0,
         prompt_cache_hit_tokens: 1_000_000,
         prompt_cache_miss_tokens: 0,
-      });
-      // All cache hit: 1M * $0.0028/1M = $0.0028
-      expect(result.inputCost).toBeCloseTo(0.0028);
+      }, 'deepseek-flash', OFF_PEAK);
+      expect(result.inputCost).toBeCloseTo(0.003);
       expect(result.cacheHitRatio).toBeCloseTo(1.0);
-      // Savings: $0.14 - $0.0028 = $0.1372
-      expect(result.cacheSavings).toBeCloseTo(0.1372);
+      expect(result.cacheSavings).toBeCloseTo(0.147);
     });
 
-    it('should handle 0% cache hit', () => {
-      const result = calculateCost({
-        prompt_tokens: 1_000_000,
-        completion_tokens: 0,
-        prompt_cache_hit_tokens: 0,
-        prompt_cache_miss_tokens: 1_000_000,
-      });
-      // All cache miss: 1M * $0.14/1M = $0.14
-      expect(result.inputCost).toBeCloseTo(0.14);
-      expect(result.cacheHitRatio).toBeCloseTo(0);
-      expect(result.cacheSavings).toBeCloseTo(0);
-    });
-
-    it('should handle zero prompt tokens with cache fields', () => {
+    it('handles zero prompt tokens with cache fields', () => {
       const result = calculateCost({
         prompt_tokens: 0,
         completion_tokens: 500,
@@ -161,33 +150,32 @@ describe('cost', () => {
       expect(result.cacheHitRatio).toBeUndefined();
     });
 
-    it('should accept model parameter for model-aware pricing (v4-pro)', () => {
-      const result = calculateCost({
-        prompt_tokens: 1_000_000,
-        completion_tokens: 1_000_000,
-      }, 'deepseek-v4-pro');
-      // v4-pro: 1M * $0.435 + 1M * $0.87 = $1.305
-      expect(result.totalCost).toBeCloseTo(1.305);
+    it('prices v4-pro on its own card', () => {
+      const result = calculateCost({ prompt_tokens: 1_000_000, completion_tokens: 1_000_000 }, 'deepseek-v4-pro', OFF_PEAK);
+      // 1M * $0.66 + 1M * $1.98
+      expect(result.totalCost).toBeCloseTo(2.64);
     });
 
-    it('should use DEFAULT_PRICING (v4-flash) for unknown model', () => {
-      const result = calculateCost({
-        prompt_tokens: 1_000_000,
-        completion_tokens: 1_000_000,
-      }, 'unknown-model');
-      expect(result.totalCost).toBeCloseTo(0.42);
+    it('prices what the API reports back for legacy requests at the flash rate', () => {
+      // The API answers deepseek-v4-flash / deepseek-chat requests with
+      // model: "deepseek-flash", and that is what calculateCost receives.
+      const usage = { prompt_tokens: 1_000_000, completion_tokens: 1_000_000 };
+      expect(calculateCost(usage, 'deepseek-flash', OFF_PEAK).totalCost)
+        .toBeCloseTo(calculateCost(usage, 'deepseek-v4-flash', OFF_PEAK).totalCost);
     });
 
-    it('should work without model parameter (backward compat)', () => {
-      const result = calculateCost({
-        prompt_tokens: 1_000_000,
-        completion_tokens: 1_000_000,
-      });
-      expect(result.totalCost).toBeCloseTo(0.42);
+    it('uses flash pricing for an unknown model', () => {
+      const result = calculateCost({ prompt_tokens: 1_000_000, completion_tokens: 1_000_000 }, 'unknown-model', OFF_PEAK);
+      expect(result.totalCost).toBeCloseTo(0.75);
     });
   });
 
   describe('formatCost', () => {
+    it('names the billing tier when the breakdown carries one', () => {
+      expect(formatCost({ inputCost: 0, outputCost: 0.5, totalCost: 0.5, tier: 'peak' })).toBe('$0.50 at peak rates');
+      expect(formatCost({ inputCost: 0, outputCost: 0.001, totalCost: 0.001, tier: 'off-peak' })).toBe('$0.0010 at off-peak rates');
+    });
+
     it('should format small values with 4 decimal places', () => {
       expect(formatCost({ inputCost: 0, outputCost: 0.001, totalCost: 0.001 })).toBe('$0.0010');
       expect(formatCost({ inputCost: 0, outputCost: 0.0001, totalCost: 0.0001 })).toBe('$0.0001');

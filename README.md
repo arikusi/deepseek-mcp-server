@@ -5,7 +5,7 @@
 <h1 align="center">DeepSeek MCP Server</h1>
 
 <p align="center">
-  MCP server for DeepSeek V4 (v4-flash and v4-pro, 1M context) with multi-turn sessions, function calling, thinking mode, and cost tracking.
+  MCP server for DeepSeek (deepseek-flash and deepseek-v4-pro, 1M context) with multi-turn sessions, function calling, thinking mode, and peak-aware cost tracking.
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT" /></a>
   <a href="https://nodejs.org/"><img src="https://img.shields.io/node/v/@arikusi/deepseek-mcp-server.svg" alt="Node.js Version" /></a>
   <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-7.0-blue.svg" alt="TypeScript" /></a>
-  <a href="https://api-docs.deepseek.com"><img src="https://img.shields.io/badge/DeepSeek-V4-7c3aed.svg" alt="DeepSeek V4" /></a>
+  <a href="https://api-docs.deepseek.com"><img src="https://img.shields.io/badge/DeepSeek-V4.1-7c3aed.svg" alt="DeepSeek V4.1" /></a>
   <a href="https://github.com/arikusi/deepseek-mcp-server/actions"><img src="https://github.com/arikusi/deepseek-mcp-server/workflows/CI/badge.svg" alt="Build Status" /></a>
 </p>
 
@@ -34,7 +34,7 @@
   </a>
 </p>
 
-> **v2.0.0 runs on DeepSeek V4.** Two models, `deepseek-v4-flash` (fast and economical) and `deepseek-v4-pro` (top capability), both with a 1M-token context window and optional chain-of-thought thinking. Existing `deepseek-chat` and `deepseek-reasoner` setups keep working through deprecated aliases, so upgrading is drop-in, but new setups should use the V4 names.
+> **2.4.0 follows DeepSeek's V4.1 rename.** The default model is now `deepseek-flash` (V4.1 Flash), next to `deepseek-v4-pro`. Both have a 1M-token context window and optional chain-of-thought thinking. `deepseek-v4-flash`, `deepseek-chat` and `deepseek-reasoner` keep working as legacy names and are sent as `deepseek-flash`, so existing configs need no change.
 
 ## Quick Start
 
@@ -86,16 +86,16 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 
 ## Features
 
-- **DeepSeek V4**: `deepseek-v4-flash` and `deepseek-v4-pro`, both with 1M context and optional chain-of-thought thinking mode
+- **DeepSeek V4.1 Flash and V4 Pro**: `deepseek-flash` and `deepseek-v4-pro`, both with 1M context and optional chain-of-thought thinking mode
 - **Multi-Turn Sessions**: Conversation context preserved across requests via `session_id` parameter
 - **Model Fallback & Circuit Breaker**: Automatic fallback between models with circuit breaker protection against cascading failures
 - **MCP Resources**: `deepseek://models`, `deepseek://config`, `deepseek://usage` — query model info, config, and usage stats
-- **Thinking Mode**: Enable chain-of-thought reasoning on either V4 model with `thinking: {type: "enabled"}`
+- **Thinking Mode**: Enable chain-of-thought reasoning on either model with `thinking: {type: "enabled"}`
 - **JSON Output Mode**: Structured JSON responses with `json_mode: true`
 - **Schema-Validated JSON**: Pass a `response_schema` and the server validates the output against it, with bounded repair retries and a ReDoS guard on schema patterns
 - **Function Calling**: OpenAI-compatible tool use with up to 128 tool definitions
 - **Fill-in-the-Middle (FIM)**: Code and content completion between a prefix and suffix via the `deepseek_fim` tool
-- **Cache-Aware Cost Tracking**: Automatic cost calculation with cache hit/miss breakdown
+- **Cache-Aware Cost Tracking**: Automatic cost calculation with cache hit/miss breakdown, priced at the peak or off-peak rate that applied when the request ran
 - **Session Management Tool**: List, delete, and clear sessions via `deepseek_sessions` tool
 - **Configurable**: Environment-based configuration with validation
 - **12 Prompt Templates**: Templates for debugging, code review, function calling, and more
@@ -190,9 +190,9 @@ Chat with DeepSeek AI models with automatic cost tracking and function calling s
   - `role`: "system" | "user" | "assistant" | "tool"
   - `content`: Message text
   - `tool_call_id` (optional): Required for tool role messages
-- `model` (optional): "deepseek-v4-flash" (default) or "deepseek-v4-pro". The deprecated "deepseek-chat" and "deepseek-reasoner" aliases are still accepted and resolve to v4-flash (non-thinking / thinking); prefer the V4 names.
+- `model` (optional): "deepseek-flash" (default) or "deepseek-v4-pro". The legacy names "deepseek-v4-flash", "deepseek-chat" and "deepseek-reasoner" are still accepted and resolve to deepseek-flash (reasoner always thinks); prefer "deepseek-flash".
 - `temperature` (optional): 0-2, controls randomness (default: 1.0). Ignored when thinking mode is enabled.
-- `max_tokens` (optional): Maximum tokens to generate (V4 models support up to 384000)
+- `max_tokens` (optional): Maximum tokens to generate (both models support up to 384000)
 - `stream` (optional): Enable streaming mode (default: false)
 - `tools` (optional): Array of tool definitions for function calling (max 128)
 - `tool_choice` (optional): "auto" | "none" | "required" | `{type: "function", function: {name: "..."}}`
@@ -206,7 +206,7 @@ Chat with DeepSeek AI models with automatic cost tracking and function calling s
 - Content with formatting (recovered as clean JSON when JSON output is requested)
 - Function call results (if tools were used)
 - Request information (tokens, model, cost in USD)
-- `structuredContent.request`: a self-contained per-request usage and cost summary (token counts, cache hit/miss, `cost_usd`), aggregated across any repair retries
+- `structuredContent.request`: a self-contained per-request usage and cost summary (token counts, cache hit/miss, `cost_usd`, and the `pricing_tier` it was priced at), aggregated across any repair retries
 - `structuredContent.effective` and `fallback`: what was actually sent after alias/thinking resolution, and any silent model fallback that fired
 - `structuredContent.schema`: when `response_schema` is used, `{valid, attempts, error?}`; `json_parse_error` when JSON output could not be recovered
 
@@ -220,13 +220,13 @@ Chat with DeepSeek AI models with automatic cost tracking and function calling s
       "content": "Explain the theory of relativity in simple terms"
     }
   ],
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "temperature": 0.7,
   "max_tokens": 1000
 }
 ```
 
-**Reasoning Example (v4-flash with thinking enabled):**
+**Reasoning Example (deepseek-flash with thinking enabled):**
 
 ```json
 {
@@ -236,7 +236,7 @@ Chat with DeepSeek AI models with automatic cost tracking and function calling s
       "content": "If I have 10 apples and eat 3, then buy 5 more, how many do I have?"
     }
   ],
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "thinking": { "type": "enabled" }
 }
 ```
@@ -303,7 +303,7 @@ When the model decides to call a function, the response includes `tool_calls` wi
       "content": "Analyze the time complexity of quicksort"
     }
   ],
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "thinking": { "type": "enabled" }
 }
 ```
@@ -320,7 +320,7 @@ When thinking mode is enabled, `temperature` and `top_p` are automatically ignor
       "content": "Return a json object with name, age, and city fields for a sample user"
     }
   ],
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "json_mode": true
 }
 ```
@@ -337,7 +337,7 @@ JSON mode ensures the model outputs valid JSON. Include the word "json" in your 
       "content": "Classify this review sentiment as json: \"Absolutely loved it\""
     }
   ],
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "response_schema": {
     "type": "object",
     "properties": {
@@ -376,7 +376,7 @@ Fill-in-the-Middle completion. You give a `prompt` (the prefix) and an optional 
 
 - `prompt` (required): The prefix text before the gap. For code completion, this is the code up to the cursor.
 - `suffix` (optional): The text after the gap. The model fills the space between `prompt` and `suffix`.
-- `model` (optional): "deepseek-v4-flash" (default) or "deepseek-v4-pro". The deprecated "deepseek-chat" and "deepseek-reasoner" aliases are still accepted and resolve to v4-flash (FIM has no thinking mode).
+- `model` (optional): "deepseek-flash" (default) or "deepseek-v4-pro". The legacy names "deepseek-v4-flash", "deepseek-chat" and "deepseek-reasoner" are still accepted and resolve to deepseek-flash (FIM has no thinking mode).
 - `max_tokens` (optional): Maximum tokens to generate, up to 4096.
 - `temperature` (optional): 0-2, controls randomness (default: 1.0).
 - `stop` (optional): A stop string or an array of up to 16 stop strings.
@@ -384,7 +384,7 @@ Fill-in-the-Middle completion. You give a `prompt` (the prefix) and an optional 
 **Response includes:**
 - The completion text
 - Request information (tokens, model, cost in USD)
-- Structured data with `text`, `usage`, `finish_reason`, and `cost_usd` fields
+- Structured data with `text`, `usage`, `finish_reason`, `cost_usd` and `pricing_tier` fields
 
 **Example (code completion):**
 
@@ -392,7 +392,7 @@ Fill-in-the-Middle completion. You give a `prompt` (the prefix) and an optional 
 {
   "prompt": "def fib(n):\n    if n < 2:\n        return n\n    return ",
   "suffix": "\n\nprint(fib(10))",
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "max_tokens": 64
 }
 ```
@@ -427,10 +427,10 @@ MCP Resources provide read-only data about the server:
 ## Model Fallback & Circuit Breaker
 
 When a model fails with a retryable error (429, 503, timeout), the server automatically falls back to the other model:
-- `deepseek-v4-flash` fails → tries `deepseek-v4-pro`
-- `deepseek-v4-pro` fails → tries `deepseek-v4-flash`
+- `deepseek-flash` fails → tries `deepseek-v4-pro`
+- `deepseek-v4-pro` fails → tries `deepseek-flash`
 
-The deprecated aliases (which resolve to v4-flash) fall back to `deepseek-v4-pro`.
+The legacy names (which resolve to deepseek-flash) fall back to `deepseek-v4-pro`.
 
 The circuit breaker protects against cascading failures:
 - After `CIRCUIT_BREAKER_THRESHOLD` consecutive failures (default: 5), the circuit **opens** (fast-fail mode)
@@ -461,31 +461,37 @@ Prompt templates (12 total):
 - **function_call_debug**: Debug function calling issues with tool definitions and messages
 - **create_function_schema**: Generate JSON Schema for function calling from natural language
 
-Each prompt is optimized for thinking mode (v4-flash with `thinking: {type: "enabled"}`) to provide detailed reasoning.
+Each prompt is optimized for thinking mode (deepseek-flash with `thinking: {type: "enabled"}`) to provide detailed reasoning.
 
 ## Models
 
-Both V4 models have a 1M-token context window, up to 384K output tokens, and support function calling, JSON mode, and optional chain-of-thought thinking. They are non-thinking by default here for fast responses; enable reasoning with `thinking: {type: "enabled"}`.
+Both models have a 1M-token context window, up to 384K output tokens, and support function calling, JSON mode, and optional chain-of-thought thinking. They are non-thinking by default here for fast responses; enable reasoning with `thinking: {type: "enabled"}`.
 
-### deepseek-v4-flash (default)
+DeepSeek bills by time of day. Peak is 01:00-04:00 and 06:00-10:00 UTC, Monday to Friday, and costs twice the off-peak rate; every other hour, including weekends, is off-peak. The cost this server reports uses whichever rate applied when the request ran. Prices below are USD per 1M tokens, from DeepSeek's pricing page as of 2026-10-23.
 
+### deepseek-flash (default)
+
+- **Model**: DeepSeek-V4.1-Flash-1017
 - **Best for**: General conversations, coding, content generation, agent loops
-- **Speed**: Fast and economical
 - **Context**: 1M tokens
 - **Max Output**: 384K tokens
-- **Pricing**: $0.0028/1M cache hit, $0.14/1M cache miss, $0.28/1M output
+- **Off-peak**: $0.003 cache hit, $0.15 cache miss, $0.60 output
+- **Peak**: $0.006 cache hit, $0.30 cache miss, $1.20 output
 
 ### deepseek-v4-pro
 
-- **Best for**: Complex reasoning, math, hard multi-step tasks, top-quality output
-- **Speed**: Slower than flash, highest capability
+- **Model**: DeepSeek-V4-Pro-0813
+- **Best for**: Hard multi-step tasks where you want the larger model
 - **Context**: 1M tokens
 - **Max Output**: 384K tokens
-- **Pricing**: $0.003625/1M cache hit, $0.435/1M cache miss, $0.87/1M output
+- **Off-peak**: $0.022 cache hit, $0.66 cache miss, $1.98 output
+- **Peak**: $0.044 cache hit, $1.32 cache miss, $3.96 output
 
-### Deprecated aliases
+DeepSeek's own benchmarks put V4.1 Flash ahead of V4 Pro, so Flash is the better default for most work.
 
-`deepseek-chat` and `deepseek-reasoner` are deprecated. They are still accepted and resolve to `deepseek-v4-flash` (chat = non-thinking, reasoner = thinking), so existing configs keep working, but they will be removed in the next major release. The DeepSeek API itself retired those two names on **2026-07-24**; this server keeps translating them to V4 for you in the meantime. New setups should use `deepseek-v4-flash` or `deepseek-v4-pro` directly.
+### Legacy names
+
+`deepseek-v4-flash`, `deepseek-chat` and `deepseek-reasoner` are still accepted and resolve to `deepseek-flash` (chat = non-thinking, reasoner = thinking). DeepSeek retired the models behind them and serves those names with V4.1 Flash anyway, so this server sends `deepseek-flash` on the wire. `deepseek-chat` and `deepseek-reasoner` will be removed in the next major release. New setups should use `deepseek-flash` or `deepseek-v4-pro`.
 
 ## Configuration
 
@@ -495,7 +501,7 @@ The server is configured via environment variables. All settings except `DEEPSEE
 |----------|---------|-------------|
 | `DEEPSEEK_API_KEY` | (required) | Your DeepSeek API key |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` | Custom API endpoint |
-| `DEFAULT_MODEL` | `deepseek-v4-flash` | Default model for requests |
+| `DEFAULT_MODEL` | `deepseek-flash` | Default model for requests |
 | `SHOW_COST_INFO` | `true` | Show cost info in responses |
 | `REQUEST_TIMEOUT` | `60000` | Request timeout in milliseconds |
 | `MAX_RETRIES` | `2` | Maximum retry count for failed requests |

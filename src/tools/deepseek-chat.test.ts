@@ -517,6 +517,7 @@ describe('tools/deepseek-chat', () => {
     expect(req.cache_miss_tokens).toBe(200);
     expect(typeof req.cost_usd).toBe('number');
     expect(req.cost_usd).toBeGreaterThan(0);
+    expect(['peak', 'off-peak']).toContain(req.pricing_tier);
   });
 
   it('should derive cache split when API omits cache fields', async () => {

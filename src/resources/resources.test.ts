@@ -60,7 +60,7 @@ describe('MCP Resources', () => {
 
       const data = JSON.parse(result.contents[0].text);
       expect(data.models).toHaveLength(2);
-      expect(data.models[0].id).toBe('deepseek-v4-flash');
+      expect(data.models[0].id).toBe('deepseek-flash');
       expect(data.models[1].id).toBe('deepseek-v4-pro');
     });
 
@@ -81,7 +81,10 @@ describe('MCP Resources', () => {
       const data = JSON.parse(result.contents[0].text);
 
       expect(data.models[0].pricing_per_million_tokens).toBeDefined();
-      expect(data.models[0].pricing_per_million_tokens.output).toBe(0.28);
+      expect(data.models[0].pricing_per_million_tokens.off_peak.output).toBe(0.6);
+      expect(data.models[0].pricing_per_million_tokens.peak.output).toBe(1.2);
+      expect(data.models[1].pricing_per_million_tokens.off_peak.input_cache_hit).toBe(0.022);
+      expect(data.pricing_note).toMatch(/01:00-04:00 and 06:00-10:00 UTC/);
     });
   });
 
