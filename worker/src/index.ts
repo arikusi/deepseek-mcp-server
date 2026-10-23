@@ -55,8 +55,16 @@ function calculateCost(usage: Record<string, number>, model: string): { totalCos
   return { totalCost, formatted };
 }
 
+// Same cap as the npm server (src/server.ts). The worker is reachable by anyone
+// holding any bearer string, so this is what stops one request from exhausting
+// the isolate's memory during argument validation (GHSA-46jr-4wx8-v453).
+const MAX_TOOL_INPUT_ELEMENTS = 20_000;
+
 function createMcpServer(apiKey: string): McpServer {
-  const server = new McpServer({ name: 'deepseek-mcp-server', version: VERSION });
+  const server = new McpServer(
+    { name: 'deepseek-mcp-server', version: VERSION },
+    { maxToolInputElements: MAX_TOOL_INPUT_ELEMENTS }
+  );
 
   server.tool(
     'deepseek_chat',
