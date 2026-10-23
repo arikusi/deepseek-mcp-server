@@ -12,7 +12,8 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { getConfig } from '../config.js';
 import { calculateCost, formatCost } from '../cost.js';
-import { FimInputSchema, FIM_MAX_TOKENS } from '../schemas.js';
+import { FimInputSchema, FIM_MAX_TOKENS, MODEL_IDS, DEFAULT_MODEL } from '../schemas.js';
+import type { DeepSeekModel } from '../types.js';
 import type { DeepSeekClient } from '../deepseek-client.js';
 import type { FimCompletionParams } from '../types.js';
 import { getErrorMessage } from '../types.js';
@@ -22,7 +23,7 @@ import { UsageTracker } from '../usage-tracker.js';
 interface DeepSeekFimInput {
   prompt: string;
   suffix?: string;
-  model?: 'deepseek-v4-flash' | 'deepseek-v4-pro' | 'deepseek-chat' | 'deepseek-reasoner';
+  model?: DeepSeekModel;
   max_tokens?: number;
   temperature?: number;
   stop?: string | string[];
@@ -33,28 +34,22 @@ export function registerFimTool(
   client: DeepSeekClient
 ): void {
   const cfg = getConfig();
-  const KNOWN_MODELS = [
-    'deepseek-v4-flash',
-    'deepseek-v4-pro',
-    'deepseek-chat',
-    'deepseek-reasoner',
-  ] as const;
-  type KnownModel = (typeof KNOWN_MODELS)[number];
-  const modelDefault: KnownModel = (KNOWN_MODELS as readonly string[]).includes(
+  type KnownModel = (typeof MODEL_IDS)[number];
+  const modelDefault: KnownModel = (MODEL_IDS as readonly string[]).includes(
     cfg.defaultModel
   )
     ? (cfg.defaultModel as KnownModel)
-    : 'deepseek-v4-flash';
+    : DEFAULT_MODEL;
 
   server.registerTool(
     'deepseek_fim',
     {
       title: 'DeepSeek FIM Completion',
       description:
-        'Fill-in-the-Middle (FIM) completion with DeepSeek V4. Provide a prompt (prefix) and an optional suffix; ' +
+        'Fill-in-the-Middle (FIM) completion with DeepSeek. Provide a prompt (prefix) and an optional suffix; ' +
         'the model completes the text in between. Ideal for code completion and content infilling. ' +
         'Runs in non-thinking mode on the Beta endpoint; output is capped at 4K tokens. ' +
-        'The deprecated aliases deepseek-chat and deepseek-reasoner are still accepted and resolve to deepseek-v4-flash (FIM has no thinking mode). ' +
+        'The legacy names deepseek-v4-flash, deepseek-chat and deepseek-reasoner are still accepted and resolve to deepseek-flash (FIM has no thinking mode). ' +
         'Includes automatic cost tracking and model fallback with circuit breaker resilience.',
       inputSchema: {
         prompt: z
@@ -70,16 +65,11 @@ export function registerFimTool(
             'Optional suffix text that comes after the content to generate. The model fills the gap between prompt and suffix.'
           ),
         model: z
-          .enum([
-            'deepseek-v4-flash',
-            'deepseek-v4-pro',
-            'deepseek-chat',
-            'deepseek-reasoner',
-          ])
+          .enum(MODEL_IDS)
           .default(modelDefault)
           .describe(
-            'Model to use. deepseek-v4-flash (default, fast/economical) or deepseek-v4-pro (most capable). ' +
-            'Deprecated aliases deepseek-chat / deepseek-reasoner are still accepted and resolve to v4-flash. FIM is always non-thinking.'
+            'Model to use. deepseek-flash (default, V4.1 Flash, fast/economical) or deepseek-v4-pro (V4 Pro). ' +
+            'Legacy names deepseek-v4-flash / deepseek-chat / deepseek-reasoner are still accepted and resolve to deepseek-flash. FIM is always non-thinking.'
           ),
         max_tokens: z
           .number()
@@ -114,6 +104,8 @@ export function registerFimTool(
         }),
         finish_reason: z.string(),
         cost_usd: z.number().optional(),
+        // Billing tier cost_usd was priced at (DeepSeek bills peak hours at 2x)
+        pricing_tier: z.enum(['peak', 'off-peak']).optional(),
         routed_from: z.string().optional(),
       },
     },
@@ -132,6 +124,7 @@ export function registerFimTool(
 
         // Track whether an alias was requested, for transparency in the output.
         const routedFrom =
+          validated.model === 'deepseek-v4-flash' ||
           validated.model === 'deepseek-chat' ||
           validated.model === 'deepseek-reasoner'
             ? validated.model
@@ -172,7 +165,7 @@ export function registerFimTool(
           responseText += `- **Model:** ${response.model}\n`;
           responseText += `- **Cost:** ${formatCost(costBreakdown)}`;
           if (routedFrom) {
-            responseText += `\n- **Routed:** ${routedFrom} -> deepseek-v4-flash`;
+            responseText += `\n- **Routed:** ${routedFrom} -> deepseek-flash`;
           }
         }
 
@@ -189,6 +182,7 @@ export function registerFimTool(
             usage: response.usage,
             finish_reason: response.finish_reason,
             cost_usd: parseFloat(costBreakdown.totalCost.toFixed(6)),
+            pricing_tier: costBreakdown.tier,
             ...(routedFrom ? { routed_from: routedFrom } : {}),
           } as unknown as Record<string, unknown>,
         };

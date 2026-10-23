@@ -76,7 +76,7 @@ describe('DeepSeekClient', () => {
       });
 
       const client = new DeepSeekClient();
-      // deepseek-chat alias resolves to v4-flash, non-thinking by default
+      // deepseek-chat alias resolves to flash, non-thinking by default
       const response = await client.createChatCompletion({
         model: 'deepseek-chat',
         messages: [{ role: 'user', content: 'Hi' }],
@@ -84,7 +84,7 @@ describe('DeepSeekClient', () => {
       });
 
       expect(response.effective).toEqual({
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-flash',
         thinking: false,
         temperature: 0.3,
       });
@@ -107,7 +107,7 @@ describe('DeepSeekClient', () => {
         temperature: 0.9,
       });
 
-      expect(response.effective?.model).toBe('deepseek-v4-flash');
+      expect(response.effective?.model).toBe('deepseek-flash');
       expect(response.effective?.thinking).toBe(true);
       expect(response.effective?.temperature).toBeUndefined();
       mockError.mockRestore();
@@ -734,7 +734,41 @@ describe('DeepSeekClient', () => {
   });
 
   describe('model alias resolution (V4)', () => {
-    it('should resolve deepseek-reasoner to deepseek-v4-flash with thinking enabled', async () => {
+    it.each(['deepseek-flash', 'deepseek-v4-flash'])(
+      'should send %s to the API as deepseek-flash, non-thinking by default',
+      async (model) => {
+        mockCreate.mockResolvedValue({
+          choices: [{ message: { content: 'Hi' }, finish_reason: 'stop' }],
+          model: 'deepseek-flash',
+          usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+        });
+        const client = new DeepSeekClient();
+        const response = await client.createChatCompletion({
+          model: model as 'deepseek-flash',
+          messages: [{ role: 'user', content: 'Hi' }],
+        });
+        expect(mockCreate).toHaveBeenCalledWith(
+          expect.objectContaining({ model: 'deepseek-flash', thinking: { type: 'disabled' } })
+        );
+        expect(response.effective?.model).toBe('deepseek-flash');
+      }
+    );
+
+    it('should pass deepseek-v4-pro through unchanged', async () => {
+      mockCreate.mockResolvedValue({
+        choices: [{ message: { content: 'Hi' }, finish_reason: 'stop' }],
+        model: 'deepseek-v4-pro',
+        usage: { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 },
+      });
+      const client = new DeepSeekClient();
+      await client.createChatCompletion({
+        model: 'deepseek-v4-pro',
+        messages: [{ role: 'user', content: 'Hi' }],
+      });
+      expect(mockCreate.mock.calls[0][0].model).toBe('deepseek-v4-pro');
+    });
+
+    it('should resolve deepseek-reasoner to deepseek-flash with thinking enabled', async () => {
       mockCreate.mockResolvedValue({
         choices: [
           {
@@ -755,7 +789,7 @@ describe('DeepSeekClient', () => {
 
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'deepseek-v4-flash',
+          model: 'deepseek-flash',
           thinking: { type: 'enabled' },
         })
       );
@@ -784,7 +818,7 @@ describe('DeepSeekClient', () => {
       });
 
       const callArgs = mockCreate.mock.calls[0][0];
-      expect(callArgs.model).toBe('deepseek-v4-flash');
+      expect(callArgs.model).toBe('deepseek-flash');
       expect(callArgs.thinking).toEqual({ type: 'enabled' });
       expect(callArgs.temperature).toBeUndefined();
       expect(callArgs.top_p).toBeUndefined();
@@ -825,10 +859,10 @@ describe('DeepSeekClient', () => {
         ],
       });
 
-      // Should route to v4-flash + thinking with tools
+      // Should route to flash + thinking with tools
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'deepseek-v4-flash',
+          model: 'deepseek-flash',
           thinking: { type: 'enabled' },
           tools: expect.any(Array),
         })
@@ -838,7 +872,7 @@ describe('DeepSeekClient', () => {
       mockError.mockRestore();
     });
 
-    it('should resolve deepseek-chat to v4-flash with thinking disabled by default', async () => {
+    it('should resolve deepseek-chat to flash with thinking disabled by default', async () => {
       mockCreate.mockResolvedValue({
         choices: [
           {
@@ -857,10 +891,10 @@ describe('DeepSeekClient', () => {
         messages: [{ role: 'user', content: 'Hi' }],
       });
 
-      // chat alias -> v4-flash, non-thinking (explicit disabled to override API default)
+      // chat alias -> flash, non-thinking (explicit disabled to override API default)
       expect(mockCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          model: 'deepseek-v4-flash',
+          model: 'deepseek-flash',
           temperature: 1.0,
           thinking: { type: 'disabled' },
         })
@@ -890,7 +924,7 @@ describe('DeepSeekClient', () => {
       });
 
       const callArgs = mockCreate.mock.calls[0][0];
-      expect(callArgs.model).toBe('deepseek-v4-flash');
+      expect(callArgs.model).toBe('deepseek-flash');
       expect(callArgs.thinking).toEqual({ type: 'enabled' });
       expect(callArgs.temperature).toBeUndefined();
       mockError.mockRestore();
@@ -1023,14 +1057,14 @@ describe('DeepSeekClient', () => {
       expect(sent.thinking).toBeUndefined();
     });
 
-    it('should resolve deepseek-reasoner alias to v4-flash on the wire', async () => {
+    it('should resolve deepseek-reasoner alias to flash on the wire', async () => {
       mockFimCreate.mockResolvedValue(rawFim('x'));
       const client = new DeepSeekClient();
       await client.createFimCompletion({
         model: 'deepseek-reasoner',
         prompt: 'hi',
       });
-      expect(mockFimCreate.mock.calls[0][0].model).toBe('deepseek-v4-flash');
+      expect(mockFimCreate.mock.calls[0][0].model).toBe('deepseek-flash');
     });
 
     it('should preserve cache token fields in usage', async () => {

@@ -1,6 +1,6 @@
 # DeepSeek MCP Server - Complete Documentation
 
-A Model Context Protocol (MCP) server that integrates DeepSeek V4 models (deepseek-v4-flash and deepseek-v4-pro, 1M context) with MCP-compatible clients like Claude Code and Gemini CLI. deepseek-chat and deepseek-reasoner are deprecated aliases, still accepted and resolved to v4-flash. Hosted remote endpoint at deepseek-mcp.tahirl.com/mcp with BYOK (Bring Your Own Key) authentication. Also supports local stdio and self-hosted Streamable HTTP transports with Docker deployment. Provides multi-turn sessions, model fallback with circuit breaker, MCP Resources, chat completion, thinking mode, JSON output, function calling, multimodal content support, model-aware cost tracking, and 12 prompt templates.
+A Model Context Protocol (MCP) server that integrates DeepSeek models (deepseek-flash, which is V4.1 Flash, and deepseek-v4-pro, both 1M context) with MCP-compatible clients like Claude Code and Gemini CLI. deepseek-v4-flash, deepseek-chat and deepseek-reasoner are legacy names, still accepted and resolved to deepseek-flash. Hosted remote endpoint at deepseek-mcp.tahirl.com/mcp with BYOK (Bring Your Own Key) authentication. Also supports local stdio and self-hosted Streamable HTTP transports with Docker deployment. Provides multi-turn sessions, model fallback with circuit breaker, MCP Resources, chat completion, thinking mode, JSON output, function calling, multimodal content support, model-aware and peak/off-peak aware cost tracking, and 12 prompt templates.
 
 ## Installation
 
@@ -45,29 +45,34 @@ Get API key: https://platform.deepseek.com
 
 ## Models
 
-deepseek-v4-flash and deepseek-v4-pro are the live V4 models (1M context, up to 384K output). deepseek-chat and deepseek-reasoner are deprecated compatibility aliases: still accepted and resolved to deepseek-v4-flash, but slated for removal in the next major release. The DeepSeek API itself retired those two names on 2026-07-24. All calls are non-thinking by default for fast responses; enable reasoning with thinking:{type:"enabled"}.
+deepseek-flash (served by DeepSeek-V4.1-Flash-1017) and deepseek-v4-pro (DeepSeek-V4-Pro-0813) are the live models, both 1M context with up to 384K output. deepseek-v4-flash, deepseek-chat and deepseek-reasoner are legacy names: still accepted and resolved to deepseek-flash, which is also what DeepSeek serves them with. deepseek-chat and deepseek-reasoner are slated for removal in the next major release. All calls are non-thinking by default for fast responses; enable reasoning with thinking:{type:"enabled"}.
 
-### deepseek-v4-flash (default)
+Pricing is per 1M tokens in USD, from DeepSeek's pricing page as of 2026-10-23. Peak is 01:00-04:00 and 06:00-10:00 UTC, Monday to Friday, at twice the off-peak rate; all other hours, weekends included, are off-peak. Reported costs use the rate in force when the request ran and say which one (pricing_tier).
+
+### deepseek-flash (default)
 - Fast, economical. General conversations, coding, content generation, agent loops
 - 1M context, up to 384K max output
-- Supports thinking mode, JSON mode, function calling
-- Pricing: $0.0028/1M cache hit, $0.14/1M cache miss, $0.28/1M output
+- Supports thinking mode, JSON mode, function calling, FIM
+- Off-peak: $0.003 cache hit, $0.15 cache miss, $0.60 output
+- Peak: $0.006 cache hit, $0.30 cache miss, $1.20 output
 
 ### deepseek-v4-pro
-- Most capable. Complex reasoning, math, hard multi-step tasks
+- Larger V4 model
 - 1M context, up to 384K max output
-- Supports thinking mode, JSON mode, function calling
-- Pricing: $0.003625/1M cache hit, $0.435/1M cache miss, $0.87/1M output
+- Supports thinking mode, JSON mode, function calling, FIM
+- Off-peak: $0.022 cache hit, $0.66 cache miss, $1.98 output
+- Peak: $0.044 cache hit, $1.32 cache miss, $3.96 output
 
 ### Model Routing Table
 
 | User selects | Sent to API | Thinking | reasoning_content |
 |---|---|---|---|
-| deepseek-v4-flash | deepseek-v4-flash | Off (default) | No |
-| deepseek-v4-flash + thinking:enabled | deepseek-v4-flash | On | Yes |
+| deepseek-flash | deepseek-flash | Off (default) | No |
+| deepseek-flash + thinking:enabled | deepseek-flash | On | Yes |
 | deepseek-v4-pro | deepseek-v4-pro | Off (default) | No |
-| deepseek-chat (deprecated alias) | deepseek-v4-flash | Off | No |
-| deepseek-reasoner (deprecated alias) | deepseek-v4-flash | On | Yes |
+| deepseek-v4-flash (legacy) | deepseek-flash | Off (default) | No |
+| deepseek-chat (legacy) | deepseek-flash | Off | No |
+| deepseek-reasoner (legacy) | deepseek-flash | On | Yes |
 
 ## Tool: deepseek_chat
 
@@ -76,7 +81,7 @@ deepseek-v4-flash and deepseek-v4-pro are the live V4 models (1M context, up to 
 | Parameter | Type | Required | Default | Description |
 |-----------|------|----------|---------|-------------|
 | messages | Array<{role, content, tool_call_id?}> | Yes | - | Conversation messages. Roles: system, user, assistant, tool. Content can be string or array of content parts (text/image_url) when multimodal is enabled |
-| model | "deepseek-v4-flash" \| "deepseek-v4-pro" \| "deepseek-chat" \| "deepseek-reasoner" | No | "deepseek-v4-flash" | Model to use (chat/reasoner are deprecated aliases for v4-flash, still accepted) |
+| model | "deepseek-flash" \| "deepseek-v4-pro" \| "deepseek-v4-flash" \| "deepseek-chat" \| "deepseek-reasoner" | No | "deepseek-flash" | Model to use (the last three are legacy names for deepseek-flash, still accepted) |
 | temperature | number (0-2) | No | 1.0 | Sampling temperature. Ignored when thinking enabled |
 | max_tokens | number (1-384000) | No | model default | Max output tokens (V4 supports up to 384000; 1M context) |
 | stream | boolean | No | false | Enable streaming mode |
@@ -115,12 +120,12 @@ Enable thinking with the thinking parameter:
 ```json
 {
   "messages": [{"role": "user", "content": "Analyze quicksort complexity"}],
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "thinking": {"type": "enabled"}
 }
 ```
 
-The deprecated deepseek-reasoner alias produces the same result (it is routed as v4-flash + thinking). When thinking is active, temperature/top_p/frequency_penalty/presence_penalty are automatically ignored. The response includes a reasoning_content field with the chain-of-thought.
+The legacy deepseek-reasoner name produces the same result (it is routed as deepseek-flash + thinking). When thinking is active, temperature/top_p/frequency_penalty/presence_penalty are automatically ignored. The response includes a reasoning_content field with the chain-of-thought.
 
 ### JSON Output Mode
 
@@ -129,7 +134,7 @@ Get structured JSON responses:
 ```json
 {
   "messages": [{"role": "user", "content": "Return a json object with user data"}],
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "json_mode": true
 }
 ```
@@ -143,7 +148,7 @@ Pass a response_schema (a JSON Schema) to constrain the output shape, not just i
 ```json
 {
   "messages": [{"role": "user", "content": "Classify this sentiment as json: \"loved it\""}],
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "response_schema": {
     "type": "object",
     "properties": {
@@ -183,7 +188,7 @@ The server validates the parsed output with Ajv. On a mismatch it issues up to R
 {
   "content": "Response text",
   "reasoning_content": "Chain-of-thought (thinking mode only)",
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "usage": {
     "prompt_tokens": 10,
     "completion_tokens": 20,
@@ -206,15 +211,15 @@ The server validates the parsed output with Ajv. On a mismatch it issues up to R
 
 ## Tool: deepseek_fim
 
-Fill-in-the-Middle (FIM) completion for code and content infilling. Provide a prefix (`prompt`) and an optional `suffix`; the model completes the text between them. Runs on DeepSeek's Beta completions endpoint in non-thinking mode; output is capped at 4096 tokens. Same cache-aware cost tracking and model fallback (v4-flash <-> v4-pro) as deepseek_chat. The deprecated deepseek-chat / deepseek-reasoner aliases are still accepted and resolve to v4-flash (FIM has no thinking mode).
+Fill-in-the-Middle (FIM) completion for code and content infilling. Provide a prefix (`prompt`) and an optional `suffix`; the model completes the text between them. Runs on DeepSeek's Beta completions endpoint in non-thinking mode; output is capped at 4096 tokens. Same cache-aware cost tracking and model fallback (deepseek-flash <-> deepseek-v4-pro) as deepseek_chat. The legacy deepseek-v4-flash / deepseek-chat / deepseek-reasoner names are still accepted and resolve to deepseek-flash (FIM has no thinking mode).
 
-Parameters: `prompt` (required), `suffix`, `model` (default deepseek-v4-flash), `max_tokens` (<= 4096), `temperature`, `stop` (string or array of up to 16).
+Parameters: `prompt` (required), `suffix`, `model` (default deepseek-flash), `max_tokens` (<= 4096), `temperature`, `stop` (string or array of up to 16).
 
 ```json
 {
   "prompt": "def fib(n):\n    if n < 2:\n        return n\n    return ",
   "suffix": "\n\nprint(fib(10))",
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "max_tokens": 64
 }
 ```
@@ -244,9 +249,9 @@ Three read-only resources:
 ## Model Fallback & Circuit Breaker
 
 **Fallback**: On retryable errors (429, 503, timeout), automatically tries the other model:
-- deepseek-v4-flash fails → tries deepseek-v4-pro
-- deepseek-v4-pro fails → tries deepseek-v4-flash
-- The deprecated aliases (which resolve to v4-flash) fall back to deepseek-v4-pro
+- deepseek-flash fails → tries deepseek-v4-pro
+- deepseek-v4-pro fails → tries deepseek-flash
+- The legacy names (which resolve to deepseek-flash) fall back to deepseek-v4-pro
 - Response includes fallback info when fallback was used
 
 **Circuit Breaker**: Protects against cascading failures:
@@ -280,7 +285,7 @@ Example output: `$0.0042 (cache hit: 80%, saved ~$0.0168)`
 |----------|---------|-------------|
 | DEEPSEEK_API_KEY | (required) | DeepSeek API key |
 | DEEPSEEK_BASE_URL | https://api.deepseek.com | Custom API endpoint |
-| DEFAULT_MODEL | deepseek-v4-flash | Default model for requests |
+| DEFAULT_MODEL | deepseek-flash | Default model for requests |
 | SHOW_COST_INFO | true | Show cost info in responses |
 | REQUEST_TIMEOUT | 60000 | Request timeout (ms) |
 | MAX_RETRIES | 2 | Max retry count |
@@ -392,7 +397,7 @@ src/
 |----------|---------|-------------|
 | DEEPSEEK_API_KEY | (required) | DeepSeek API key |
 | DEEPSEEK_BASE_URL | https://api.deepseek.com | Custom API endpoint |
-| DEFAULT_MODEL | deepseek-v4-flash | Default model for requests |
+| DEFAULT_MODEL | deepseek-flash | Default model for requests |
 | SHOW_COST_INFO | true | Show cost info in responses |
 | REQUEST_TIMEOUT | 60000 | Request timeout (ms) |
 | MAX_RETRIES | 2 | Max retry count |

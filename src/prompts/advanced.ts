@@ -6,7 +6,7 @@
 
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { getPricing } from '../cost.js';
+import { getTieredPricing } from '../cost.js';
 
 export function registerAdvancedPrompts(server: McpServer): void {
   server.registerPrompt(
@@ -37,7 +37,7 @@ Provide:
 3. **Proof**: Step-by-step logical reasoning
 4. **Conclusion**: QED statement
 
-Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for strict logical reasoning.`,
+Use the deepseek_chat tool with model: "deepseek-flash" and thinking: {"type": "enabled"} for strict logical reasoning.`,
           },
         },
       ],
@@ -80,7 +80,7 @@ Please identify:
 6. **Validity**: Is the reasoning sound?
 7. **Improvements**: How to strengthen the argument
 
-Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for thorough logical analysis.`,
+Use the deepseek_chat tool with model: "deepseek-flash" and thinking: {"type": "enabled"} for thorough logical analysis.`,
           },
         },
       ],
@@ -126,7 +126,7 @@ For each idea, provide:
 4. **Value**: Potential impact
 5. **Next Steps**: How to validate/implement
 
-Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for reasoned creativity.`,
+Use the deepseek_chat tool with model: "deepseek-flash" and thinking: {"type": "enabled"} for reasoned creativity.`,
           },
         },
       ],
@@ -150,8 +150,8 @@ Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type"
     ({ task, estimated_tokens }, _extra) => {
       // Read the live pricing table rather than restating it, so this prompt
       // cannot drift out of sync with what the server actually bills.
-      const flash = getPricing('deepseek-v4-flash');
-      const pro = getPricing('deepseek-v4-pro');
+      const flash = getTieredPricing('deepseek-flash');
+      const pro = getTieredPricing('deepseek-v4-pro');
 
       return {
         messages: [
@@ -167,8 +167,11 @@ Estimated tokens: ${estimated_tokens} (prompt + completion)
 DeepSeek rates, per 1M tokens, taken from this server's own pricing table so
 they match what it actually bills:
 
-1. **DeepSeek V4 Flash**: $${flash.cache_miss} prompt (cache miss), $${flash.cache_hit} prompt (cache hit), $${flash.output} completion
-2. **DeepSeek V4 Pro**: $${pro.cache_miss} prompt (cache miss), $${pro.cache_hit} prompt (cache hit), $${pro.output} completion
+1. **DeepSeek V4.1 Flash** (deepseek-flash): off-peak $${flash['off-peak'].cache_miss} prompt (cache miss), $${flash['off-peak'].cache_hit} prompt (cache hit), $${flash['off-peak'].output} completion; peak $${flash.peak.cache_miss} / $${flash.peak.cache_hit} / $${flash.peak.output}
+2. **DeepSeek V4 Pro** (deepseek-v4-pro): off-peak $${pro['off-peak'].cache_miss} prompt (cache miss), $${pro['off-peak'].cache_hit} prompt (cache hit), $${pro['off-peak'].output} completion; peak $${pro.peak.cache_miss} / $${pro.peak.cache_hit} / $${pro.peak.output}
+
+Peak is 01:00-04:00 and 06:00-10:00 UTC on weekdays; every other hour bills
+off-peak, so state which tier your estimate assumes.
 
 Compare those against the current published rates for a frontier model and a
 mid-tier model from Anthropic and OpenAI. Quote the figures you use and say
@@ -180,7 +183,7 @@ Show:
 * How much the DeepSeek figure moves once prompt caching is in play
 * When to use which model (cost vs quality)
 
-Use the deepseek_chat tool with model: "deepseek-v4-flash" for this analysis.`,
+Use the deepseek_chat tool with model: "deepseek-flash" for this analysis.`,
             },
           },
         ],
@@ -222,7 +225,7 @@ Please:
 4. **Test**: Suggest test cases with reasoning
 5. **Optimize**: Mention potential improvements
 
-Use the deepseek_chat tool with model: "deepseek-v4-flash" and thinking: {"type": "enabled"} for thoughtful code generation.`,
+Use the deepseek_chat tool with model: "deepseek-flash" and thinking: {"type": "enabled"} for thoughtful code generation.`,
           },
         },
       ],

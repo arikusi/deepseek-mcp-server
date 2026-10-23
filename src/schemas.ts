@@ -49,16 +49,20 @@ export const ResponseSchemaSchema = z
   .record(z.string(), z.unknown())
   .optional();
 
-/** Accepted model identifiers. v4-flash/v4-pro are the live API models;
- *  deepseek-chat/deepseek-reasoner are compatibility aliases resolved internally. */
-export const ModelSchema = z
-  .enum([
-    'deepseek-v4-flash',
-    'deepseek-v4-pro',
-    'deepseek-chat',
-    'deepseek-reasoner',
-  ])
-  .default('deepseek-v4-flash');
+/** Accepted model identifiers. deepseek-flash and deepseek-v4-pro are the live
+ *  API models. deepseek-v4-flash, deepseek-chat and deepseek-reasoner are legacy
+ *  names, still accepted and translated to deepseek-flash before sending. */
+export const MODEL_IDS = [
+  'deepseek-flash',
+  'deepseek-v4-pro',
+  'deepseek-v4-flash',
+  'deepseek-chat',
+  'deepseek-reasoner',
+] as const;
+
+export const DEFAULT_MODEL = 'deepseek-flash';
+
+export const ModelSchema = z.enum(MODEL_IDS).default(DEFAULT_MODEL);
 
 export const ChatInputSchema = z.object({
   messages: z.array(MessageSchema).min(1),

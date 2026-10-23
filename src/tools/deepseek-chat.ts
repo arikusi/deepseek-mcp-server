@@ -16,6 +16,8 @@ import {
   ThinkingSchema,
   ReasoningEffortSchema,
   ContentSchema,
+  MODEL_IDS,
+  DEFAULT_MODEL,
 } from '../schemas.js';
 import type {
   DeepSeekClient,
@@ -51,29 +53,23 @@ export function registerChatTool(
   client: DeepSeekClient,
   sessionStore: SessionStore
 ): void {
-  // Use config's defaultModel if it's a recognized model name, else v4-flash
+  // Use config's defaultModel if it's a recognized model name, else deepseek-flash
   const cfg = getConfig();
-  const KNOWN_MODELS = [
-    'deepseek-v4-flash',
-    'deepseek-v4-pro',
-    'deepseek-chat',
-    'deepseek-reasoner',
-  ] as const;
-  type KnownModel = (typeof KNOWN_MODELS)[number];
-  const modelDefault: KnownModel = (KNOWN_MODELS as readonly string[]).includes(
+  type KnownModel = (typeof MODEL_IDS)[number];
+  const modelDefault: KnownModel = (MODEL_IDS as readonly string[]).includes(
     cfg.defaultModel
   )
     ? (cfg.defaultModel as KnownModel)
-    : 'deepseek-v4-flash';
+    : DEFAULT_MODEL;
 
   server.registerTool(
     'deepseek_chat',
     {
       title: 'DeepSeek Chat Completion',
       description:
-        'Chat with DeepSeek V4 models. deepseek-v4-flash (fast, economical) and deepseek-v4-pro (most capable), ' +
-        'both 1M context with optional chain-of-thought thinking mode. deepseek-chat and deepseek-reasoner are ' +
-        'deprecated aliases, still accepted for backward compatibility (resolve to v4-flash) but slated for removal; prefer the v4 names. ' +
+        'Chat with DeepSeek models. deepseek-flash (V4.1 Flash, fast and economical) and deepseek-v4-pro (V4 Pro), ' +
+        'both 1M context with optional chain-of-thought thinking mode. deepseek-v4-flash, deepseek-chat and deepseek-reasoner are ' +
+        'legacy names, still accepted for backward compatibility (they resolve to deepseek-flash); prefer deepseek-flash. ' +
         'Features: multi-turn sessions (session_id), function calling (tools parameter), thinking mode, ' +
         'JSON output mode, multimodal input (when enabled), automatic cost tracking, and model fallback with circuit breaker resilience.',
       inputSchema: {
@@ -84,17 +80,12 @@ export function registerChatTool(
             'Array of conversation messages. Each message has role (system/user/assistant/tool) and content (string or array of content parts for multimodal). Tool messages require tool_call_id.'
           ),
         model: z
-          .enum([
-            'deepseek-v4-flash',
-            'deepseek-v4-pro',
-            'deepseek-chat',
-            'deepseek-reasoner',
-          ])
+          .enum(MODEL_IDS)
           .default(modelDefault)
           .describe(
-            'Model to use. deepseek-v4-flash (default, fast/economical) or deepseek-v4-pro (most capable), both 1M context, up to 384K output. ' +
+            'Model to use. deepseek-flash (default, V4.1 Flash, fast/economical) or deepseek-v4-pro (V4 Pro), both 1M context, up to 384K output. ' +
             'Non-thinking by default for speed; pass thinking:{type:"enabled"} to reason. ' +
-            'Deprecated aliases (still accepted, prefer v4 names): deepseek-chat -> v4-flash non-thinking, deepseek-reasoner -> v4-flash thinking.'
+            'Legacy names (still accepted, prefer deepseek-flash): deepseek-v4-flash -> deepseek-flash, deepseek-chat -> deepseek-flash non-thinking, deepseek-reasoner -> deepseek-flash thinking.'
           ),
         temperature: z
           .number()
@@ -180,6 +171,8 @@ export function registerChatTool(
           cache_hit_tokens: z.number(),
           cache_miss_tokens: z.number(),
           cost_usd: z.number(),
+          // Billing tier cost_usd was priced at (DeepSeek bills peak hours at 2x)
+          pricing_tier: z.enum(['peak', 'off-peak']).optional(),
         }),
         // Present only when a model fallback fired: surfaces the silent
         // switch so a caller can flag or discard the response.
@@ -426,6 +419,7 @@ export function registerChatTool(
           cache_hit_tokens: totalUsage.cache_hit_tokens,
           cache_miss_tokens: totalUsage.cache_miss_tokens,
           cost_usd: parseFloat(totalCostUsd.toFixed(6)),
+          pricing_tier: costBreakdown.tier,
         };
 
         // Update session with new messages and response
@@ -476,7 +470,7 @@ export function registerChatTool(
           responseText += `- **Model:** ${response.model}\n`;
           responseText += `- **Cost:** ${formatCost(costBreakdown)}`;
           if (isReasonerRouted) {
-            responseText += `\n- **Routed:** deepseek-reasoner -> deepseek-v4-flash + thinking`;
+            responseText += `\n- **Routed:** deepseek-reasoner -> deepseek-flash + thinking`;
           }
           if (response.fallback) {
             responseText += `\n- **Fallback:** ${response.fallback.originalModel} -> ${response.fallback.fallbackModel} (${response.fallback.reason})`;

@@ -5,14 +5,15 @@
 
 /**
  * Supported DeepSeek models.
- * deepseek-v4-flash / deepseek-v4-pro are the current API models.
- * deepseek-chat / deepseek-reasoner are accepted as compatibility aliases
- * (resolved internally to deepseek-v4-flash); the DeepSeek API retires those
- * two names on 2026-07-24, so they are translated before the request is sent.
+ * deepseek-flash / deepseek-v4-pro are the current API models.
+ * deepseek-v4-flash, deepseek-chat and deepseek-reasoner are legacy names. The
+ * API still accepts them but serves them with deepseek-flash, so they are
+ * translated before the request is sent.
  */
 export type DeepSeekModel =
-  | 'deepseek-v4-flash'
+  | 'deepseek-flash'
   | 'deepseek-v4-pro'
+  | 'deepseek-v4-flash'
   | 'deepseek-chat'
   | 'deepseek-reasoner';
 
@@ -158,7 +159,7 @@ export interface DeepSeekChatInput {
     content: string | ContentPart[];
     tool_call_id?: string;
   }>;
-  model?: 'deepseek-v4-flash' | 'deepseek-v4-pro' | 'deepseek-chat' | 'deepseek-reasoner';
+  model?: DeepSeekModel;
   temperature?: number;
   max_tokens?: number;
   stream?: boolean;
@@ -395,7 +396,7 @@ export interface FallbackInfo {
  * so a caller can record exactly what answered — not just the requested alias.
  */
 export interface EffectiveRequest {
-  /** Wire model actually called (aliases resolved, e.g. deepseek-reasoner -> deepseek-v4-flash) */
+  /** Wire model actually called (aliases resolved, e.g. deepseek-reasoner -> deepseek-flash) */
   model: string;
   /** Whether thinking/chain-of-thought was enabled for this attempt */
   thinking: boolean;

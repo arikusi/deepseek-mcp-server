@@ -33,12 +33,13 @@ const THINKING_INCOMPATIBLE_PARAMS = ['temperature', 'top_p'] as const;
 /**
  * Fallback order per model. Each model lists fallback candidates in priority order.
  * When a model fails with a retryable error, the first available fallback is tried.
- * v4-flash and v4-pro are genuinely different models, so they back each other up.
- * The chat/reasoner aliases (which resolve to v4-flash) fall back to v4-pro.
+ * Flash and v4-pro are genuinely different models, so they back each other up.
+ * The legacy names (which resolve to deepseek-flash) fall back to v4-pro.
  */
 const FALLBACK_ORDER: Record<string, string[]> = {
+  'deepseek-flash': ['deepseek-v4-pro'],
+  'deepseek-v4-pro': ['deepseek-flash'],
   'deepseek-v4-flash': ['deepseek-v4-pro'],
-  'deepseek-v4-pro': ['deepseek-v4-flash'],
   'deepseek-chat': ['deepseek-v4-pro'],
   'deepseek-reasoner': ['deepseek-v4-pro'],
 };
@@ -73,15 +74,18 @@ function isRetryableError(error: unknown): boolean {
 }
 
 /**
- * Resolve a user-facing model to the wire model the API accepts.
- * FIM has no thinking mode, so both compatibility aliases collapse to
- * v4-flash; the live v4 models pass through unchanged.
+ * Legacy names DeepSeek now serves with deepseek-flash. The API still accepts
+ * them, but only "temporarily" by its own docs, so we send the current name.
  */
-function resolveFimModel(model: string): string {
-  if (model === 'deepseek-chat' || model === 'deepseek-reasoner') {
-    return 'deepseek-v4-flash';
-  }
-  return model;
+const LEGACY_FLASH_MODELS: ReadonlySet<string> = new Set([
+  'deepseek-v4-flash',
+  'deepseek-chat',
+  'deepseek-reasoner',
+]);
+
+/** Resolve a user-facing model to the wire model the API accepts. */
+function toWireModel(model: string): string {
+  return LEGACY_FLASH_MODELS.has(model) ? 'deepseek-flash' : model;
 }
 
 export class DeepSeekClient {
@@ -163,15 +167,7 @@ export class DeepSeekClient {
    * buildRequestParams below.
    */
   private resolveEffective(params: ChatCompletionParams): EffectiveRequest {
-    let model: string;
-    switch (params.model) {
-      case 'deepseek-reasoner':
-      case 'deepseek-chat':
-        model = 'deepseek-v4-flash';
-        break;
-      default:
-        model = params.model;
-    }
+    const model = toWireModel(params.model);
     // reasoner always reasons; everything else defaults to non-thinking unless
     // an explicit thinking flag turns it on.
     const thinking =
@@ -191,9 +187,9 @@ export class DeepSeekClient {
     stream: boolean
   ): Record<string, unknown> {
     // Resolve the user-facing model + thinking flag to what the API expects.
-    // v4-flash / v4-pro are the live API models. deepseek-chat and
-    // deepseek-reasoner are compatibility aliases (the API retires those names
-    // on 2026-07-24), so they are translated to v4-flash here. The API defaults
+    // deepseek-flash / deepseek-v4-pro are the live API models. The legacy
+    // names (deepseek-v4-flash, deepseek-chat, deepseek-reasoner) are
+    // translated to deepseek-flash here. The API defaults
     // thinking to ENABLED, so we always send an explicit flag — including
     // disabled — to keep the historical fast (non-thinking) default.
     let effectiveModel: string;
@@ -201,19 +197,20 @@ export class DeepSeekClient {
     switch (params.model) {
       case 'deepseek-reasoner':
         // "thinking" alias: always reason
-        effectiveModel = 'deepseek-v4-flash';
+        effectiveModel = 'deepseek-flash';
         effectiveThinking = { type: 'enabled' };
-        console.error('[DeepSeek MCP] Routing: deepseek-reasoner -> deepseek-v4-flash + thinking');
+        console.error('[DeepSeek MCP] Routing: deepseek-reasoner -> deepseek-flash + thinking');
         break;
       case 'deepseek-chat':
         // "non-thinking" alias: fast by default, but honour an explicit thinking:enabled
-        effectiveModel = 'deepseek-v4-flash';
+        effectiveModel = 'deepseek-flash';
         effectiveThinking = params.thinking ?? { type: 'disabled' };
-        console.error('[DeepSeek MCP] Routing: deepseek-chat -> deepseek-v4-flash');
+        console.error('[DeepSeek MCP] Routing: deepseek-chat -> deepseek-flash');
         break;
       default:
-        // deepseek-v4-flash / deepseek-v4-pro: pass through, default to non-thinking
-        effectiveModel = params.model;
+        // deepseek-flash / deepseek-v4-pro pass through, deepseek-v4-flash is
+        // renamed; all default to non-thinking
+        effectiveModel = toWireModel(params.model);
         effectiveThinking = params.thinking ?? { type: 'disabled' };
     }
 
@@ -350,7 +347,7 @@ export class DeepSeekClient {
     params: FimCompletionParams
   ): Record<string, unknown> {
     const requestParams: Record<string, unknown> = {
-      model: resolveFimModel(params.model),
+      model: toWireModel(params.model),
       prompt: params.prompt,
       stream: false,
     };
@@ -629,7 +626,7 @@ export class DeepSeekClient {
   async testConnection(): Promise<boolean> {
     try {
       const response = await this.createChatCompletion({
-        model: 'deepseek-v4-flash',
+        model: 'deepseek-flash',
         messages: [{ role: 'user', content: 'Hi' }],
         max_tokens: 10,
       });

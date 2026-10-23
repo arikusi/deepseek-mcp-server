@@ -62,7 +62,7 @@ describe('schemas', () => {
       const result = ChatInputSchema.parse({
         messages: [{ role: 'user', content: 'Hi' }],
       });
-      expect(result.model).toBe('deepseek-v4-flash');
+      expect(result.model).toBe('deepseek-flash');
       expect(result.stream).toBe(false);
     });
 
@@ -445,7 +445,7 @@ describe('schemas', () => {
       const result = ChatInputWithToolsSchema.parse({
         messages: [{ role: 'user', content: 'Hi' }],
       });
-      expect(result.model).toBe('deepseek-v4-flash');
+      expect(result.model).toBe('deepseek-flash');
       expect(result.stream).toBe(false);
       expect(result.tools).toBeUndefined();
       expect(result.tool_choice).toBeUndefined();
@@ -539,7 +539,7 @@ describe('schemas', () => {
       const result = FimInputSchema.safeParse({ prompt: 'def f():' });
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.model).toBe('deepseek-v4-flash');
+        expect(result.data.model).toBe('deepseek-flash');
       }
     });
 

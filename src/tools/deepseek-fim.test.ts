@@ -85,10 +85,13 @@ describe('tools/deepseek-fim', () => {
     const sent = mockCompletionsCreate.mock.calls[0][0];
     expect(sent.prompt).toBe('def multiply(a, b):\n');
     expect(sent.suffix).toBe('\n');
-    expect(sent.model).toBe('deepseek-v4-flash');
+    expect(sent.model).toBe('deepseek-flash');
+    // deepseek-v4-flash is a legacy name now, so the rename is reported
+    expect(result.structuredContent.routed_from).toBe('deepseek-v4-flash');
+    expect(['peak', 'off-peak']).toContain(result.structuredContent.pricing_tier);
   });
 
-  it('should resolve deepseek-reasoner alias to v4-flash and report routing', async () => {
+  it('should resolve deepseek-reasoner alias to flash and report routing', async () => {
     mockCompletionsCreate.mockResolvedValue(fimRaw('x', 'deepseek-v4-flash'));
     const client = await makeClient();
     registerFimTool(mockServer as any, client);
@@ -101,7 +104,7 @@ describe('tools/deepseek-fim', () => {
 
     expect(result.structuredContent.routed_from).toBe('deepseek-reasoner');
     const sent = mockCompletionsCreate.mock.calls[0][0];
-    expect(sent.model).toBe('deepseek-v4-flash');
+    expect(sent.model).toBe('deepseek-flash');
   });
 
   it('should reject max_tokens above the FIM cap (4096)', async () => {

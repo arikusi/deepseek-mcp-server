@@ -2,11 +2,21 @@
  * Cost Calculation Module
  * Handles pricing and cost formatting for DeepSeek API requests
  *
- * Model-aware pricing per 1M tokens (USD), from the DeepSeek V4 pricing page:
- * - deepseek-v4-flash: cache hit $0.0028, cache miss $0.14, output $0.28
- * - deepseek-v4-pro:   cache hit $0.003625, cache miss $0.435, output $0.87
- * The deepseek-chat / deepseek-reasoner aliases resolve to deepseek-v4-flash,
- * so they carry v4-flash pricing. New models can be added to MODEL_PRICING.
+ * Model-aware, time-aware pricing per 1M tokens (USD), from DeepSeek's pricing
+ * page (api-docs.deepseek.com/quick_start/pricing, checked 2026-10-23):
+ *
+ *                       off-peak                     peak
+ * deepseek-flash       hit 0.003 miss 0.15 out 0.60  hit 0.006 miss 0.30 out 1.20
+ * deepseek-v4-pro      hit 0.022 miss 0.66 out 1.98  hit 0.044 miss 1.32 out 3.96
+ *
+ * Peak is 01:00-04:00 and 06:00-10:00 UTC, Monday to Friday, which is 35 of
+ * the week's 168 hours. Everything else, weekends included, is off-peak. The
+ * English and Chinese pages agree on this now. DeepSeek also bills Chinese
+ * public holidays as off-peak all day; we do not keep a holiday calendar, so on
+ * those days a request inside the weekday window is reported at the peak rate.
+ *
+ * deepseek-v4-flash, deepseek-chat and deepseek-reasoner are legacy names that
+ * DeepSeek serves with deepseek-flash and bills at the Flash price.
  */
 
 /**
@@ -18,33 +28,70 @@ export interface ModelPricing {
   output: number;
 }
 
-/** v4-flash pricing — also the default for unknown models (cheapest, most common) */
-export const DEFAULT_PRICING: ModelPricing = {
-  cache_hit: 0.0028,
-  cache_miss: 0.14,
-  output: 0.28,
+export type PricingTier = 'peak' | 'off-peak';
+
+/** Rates for both billing tiers of one model */
+export interface TieredPricing {
+  'off-peak': ModelPricing;
+  peak: ModelPricing;
+}
+
+const FLASH_PRICING: TieredPricing = {
+  'off-peak': { cache_hit: 0.003, cache_miss: 0.15, output: 0.6 },
+  peak: { cache_hit: 0.006, cache_miss: 0.3, output: 1.2 },
 };
 
-/** Backward-compatible alias */
-export const PRICING = DEFAULT_PRICING;
+const PRO_PRICING: TieredPricing = {
+  'off-peak': { cache_hit: 0.022, cache_miss: 0.66, output: 1.98 },
+  peak: { cache_hit: 0.044, cache_miss: 1.32, output: 3.96 },
+};
+
+/** Flash pricing is also the default for unknown models (cheapest, most common) */
+export const DEFAULT_PRICING: TieredPricing = FLASH_PRICING;
 
 /** Per-model pricing map. Add new models here as they become available. */
-export const MODEL_PRICING: Record<string, ModelPricing> = {
-  'deepseek-v4-flash': { cache_hit: 0.0028, cache_miss: 0.14, output: 0.28 },
-  'deepseek-v4-pro': { cache_hit: 0.003625, cache_miss: 0.435, output: 0.87 },
-  // Compatibility aliases (resolve to v4-flash on the wire)
-  'deepseek-chat': { cache_hit: 0.0028, cache_miss: 0.14, output: 0.28 },
-  'deepseek-reasoner': { cache_hit: 0.0028, cache_miss: 0.14, output: 0.28 },
+export const MODEL_PRICING: Record<string, TieredPricing> = {
+  'deepseek-flash': FLASH_PRICING,
+  'deepseek-v4-pro': PRO_PRICING,
+  // Legacy names, served by deepseek-flash at the Flash price
+  'deepseek-v4-flash': FLASH_PRICING,
+  'deepseek-chat': FLASH_PRICING,
+  'deepseek-reasoner': FLASH_PRICING,
 };
 
+/** UTC hour ranges [start, end) that bill at the peak rate on weekdays */
+const PEAK_WINDOWS_UTC: ReadonlyArray<readonly [number, number]> = [
+  [1, 4],
+  [6, 10],
+];
+
 /**
- * Get pricing for a specific model. Falls back to DEFAULT_PRICING for unknown models.
+ * Which billing tier applies at a given instant. Takes the instant as a
+ * parameter so callers and tests can pin it instead of reading the clock.
  */
-export function getPricing(model?: string): ModelPricing {
+export function getPricingTier(at: Date = new Date()): PricingTier {
+  const day = at.getUTCDay();
+  if (day === 0 || day === 6) return 'off-peak';
+  const hour = at.getUTCHours();
+  return PEAK_WINDOWS_UTC.some(([start, end]) => hour >= start && hour < end)
+    ? 'peak'
+    : 'off-peak';
+}
+
+/** Both tiers for a model. Falls back to DEFAULT_PRICING for unknown models. */
+export function getTieredPricing(model?: string): TieredPricing {
   if (model && model in MODEL_PRICING) {
     return MODEL_PRICING[model];
   }
   return DEFAULT_PRICING;
+}
+
+/**
+ * Rates for a model at a given instant (defaults to now).
+ * Falls back to DEFAULT_PRICING for unknown models.
+ */
+export function getPricing(model?: string, at: Date = new Date()): ModelPricing {
+  return getTieredPricing(model)[getPricingTier(at)];
 }
 
 /**
@@ -56,6 +103,8 @@ export interface CostBreakdown {
   totalCost: number;
   cacheHitRatio?: number;
   cacheSavings?: number;
+  /** Billing tier the rates were taken from */
+  tier?: PricingTier;
 }
 
 /**
@@ -68,7 +117,7 @@ export function calculateCost(usage: {
   completion_tokens: number;
   prompt_cache_hit_tokens?: number;
   prompt_cache_miss_tokens?: number;
-}, model?: string): CostBreakdown {
+}, model?: string, at: Date = new Date()): CostBreakdown {
   const {
     prompt_tokens,
     completion_tokens,
@@ -76,7 +125,8 @@ export function calculateCost(usage: {
     prompt_cache_miss_tokens,
   } = usage;
 
-  const pricing = getPricing(model);
+  const tier = getPricingTier(at);
+  const pricing = getTieredPricing(model)[tier];
 
   let inputCost: number;
   let cacheHitRatio: number | undefined;
@@ -113,6 +163,7 @@ export function calculateCost(usage: {
     totalCost: inputCost + outputCost,
     cacheHitRatio,
     cacheSavings,
+    tier,
   };
 }
 
@@ -127,6 +178,10 @@ export function formatCost(breakdown: CostBreakdown): string {
     formatted = `$${cost.toFixed(4)}`;
   } else {
     formatted = `$${cost.toFixed(2)}`;
+  }
+
+  if (breakdown.tier) {
+    formatted += ` at ${breakdown.tier} rates`;
   }
 
   if (
