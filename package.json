@@ -1,6 +1,6 @@
 {
   "name": "@arikusi/deepseek-mcp-server",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "mcpName": "io.github.arikusi/deepseek",
   "description": "MCP server for the DeepSeek API (deepseek-flash, deepseek-v4-pro): chat, thinking mode, function calling, FIM and cost tracking for Claude Code and other MCP clients",
   "main": "dist/index.js",
