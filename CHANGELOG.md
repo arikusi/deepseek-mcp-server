@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-10-28
+
+### Security
+- **zod 4.6.7 (GHSA-mrhx-c7xc-m3w5, high, upstream).** zod before 4.6.6 could run out of memory while validating oversized constrained collections, and every tool call goes through zod. The advisory came out on 2026-10-01, so 2.4.0 shipped with it. The 20,000 element cap from 2.4.0 limited how big one call could get; the patched zod is the actual fix. Dependabot never opened an alert for this one or for the next; `npm audit` found both.
+- **body-parser 2.4.0 (GHSA-27r3-jxmh-p828, high, upstream).** A compressed request body followed by trailing bytes could tie up the process. The npm server's HTTP mode reaches body-parser through the SDK's express app. stdio mode and the hosted worker never parse bodies with it.
+- Transitive moderate fixes: `qs` 6.17.0, `fast-uri` 3.1.9 (two advisories), `ip-address` 10.7.5. On the worker's dev side, wrangler 4.154 brings a patched `undici` and `miniflare`.
+- Dependency floors raised. `package.json` still asked for `@modelcontextprotocol/sdk ^1.29.0`, but the 2.4.0 tool input cap depends on `maxToolInputElements`, which only exists from SDK 1.32. An install that resolved an older SDK would have dropped the cap without any error. The floors are now sdk `^1.32.2`, zod `^4.6.7` and openai `^7.45.1`.
+
+### Added
+- `reasoning_effort` accepts `"low"` on both the npm server and the worker. DeepSeek's `/models` endpoint now lists low, high and max for `deepseek-flash` and `deepseek-v4-pro`. The API's parser takes a few more names, but only the advertised three are exposed.
+
 ## [2.4.0] - 2026-10-23
 
 ### Security
@@ -450,7 +461,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [GitHub repository](https://github.com/arikusi/deepseek-mcp-server)
 - [Issue tracker](https://github.com/arikusi/deepseek-mcp-server/issues)
 
-[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.2.1...HEAD
+[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.5.0...HEAD
+[2.5.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.4.0...v2.5.0
+[2.4.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.3.0...v2.4.0
+[2.3.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.2.1...v2.3.0
 [2.2.1]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.2.0...v2.2.1
 [2.2.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.1.0...v2.2.0
 [2.1.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.0.0...v2.1.0

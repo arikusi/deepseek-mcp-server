@@ -104,7 +104,7 @@ gemini mcp add deepseek npx @arikusi/deepseek-mcp-server -e DEEPSEEK_API_KEY=you
 - **Remote Endpoint**: Hosted at `deepseek-mcp.tahirl.com/mcp` — BYOK (Bring Your Own Key), no install needed
 - **HTTP Transport**: Self-hosted remote access via Streamable HTTP with `TRANSPORT=http`
 - **Docker Ready**: Multi-stage Dockerfile with health checks for containerized deployment
-- **Tested**: 366 tests, ~92% line coverage
+- **Tested**: 368 tests, ~92% line coverage
 - **Type-Safe**: Full TypeScript implementation
 - **MCP Compatible**: Works with any MCP-compatible CLI (Claude Code, Gemini CLI, etc.)
 

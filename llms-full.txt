@@ -421,9 +421,9 @@ src/
 
 - TypeScript 6.0 (strict mode)
 - @modelcontextprotocol/sdk for MCP protocol
-- OpenAI SDK v6 for API compatibility
+- OpenAI SDK v7 for API compatibility
 - Zod v4 for validation
-- Vitest for testing (366 tests, ~92% line coverage)
+- Vitest for testing (368 tests, ~92% line coverage)
 - Node.js 22+
 
 ## Links
