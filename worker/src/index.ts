@@ -153,9 +153,9 @@ function createMcpServer(apiKey: string): McpServer {
         .optional()
         .describe('Toggle thinking mode. {type:"enabled"} to reason, {type:"disabled"} for a fast answer (default)'),
       reasoning_effort: z
-        .enum(['high', 'max'])
+        .enum(['low', 'high', 'max'])
         .optional()
-        .describe('Reasoning effort while thinking is active: high (default) or max'),
+        .describe('Reasoning effort while thinking is active: low, high (default) or max'),
       json_mode: z.boolean().optional().describe('Enable JSON output mode'),
     },
     {
@@ -479,7 +479,7 @@ export default {
                 tools: { type: 'array', description: 'Tool definitions for function calling' },
                 tool_choice: { description: 'Tool choice control' },
                 thinking: { type: 'object', description: 'Toggle thinking mode' },
-                reasoning_effort: { type: 'string', enum: ['high', 'max'], description: 'Reasoning effort while thinking' },
+                reasoning_effort: { type: 'string', enum: ['low', 'high', 'max'], description: 'Reasoning effort while thinking' },
                 json_mode: { type: 'boolean', description: 'Enable JSON output mode' },
               },
             },

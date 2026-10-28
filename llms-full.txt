@@ -88,7 +88,7 @@ Pricing is per 1M tokens in USD, from DeepSeek's pricing page as of 2026-10-23. 
 | tools | Array<ToolDefinition> (max 128) | No | - | Function calling tool definitions |
 | tool_choice | "auto" \| "none" \| "required" \| {type, function} | No | "auto" | Which tool to call |
 | thinking | {type: "enabled" \| "disabled"} | No | disabled | Toggle thinking mode (non-thinking by default) |
-| reasoning_effort | "high" \| "max" | No | high | Reasoning effort while thinking is active |
+| reasoning_effort | "low" \| "high" \| "max" | No | high | Reasoning effort while thinking is active |
 | json_mode | boolean | No | false | Enable JSON output mode (supported by both models) |
 | response_schema | object (JSON Schema) | No | - | Validate the model output against this JSON Schema. Implies JSON output. On mismatch, up to RESPONSE_SCHEMA_MAX_RETRIES repair retries feed the error back to the model. Schema regex patterns are ReDoS-screened; an unsafe pattern is rejected |
 | session_id | string | No | - | Session ID for multi-turn conversations |

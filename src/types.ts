@@ -128,7 +128,7 @@ export interface ChatCompletionParams {
   tools?: ToolDefinition[];
   tool_choice?: ToolChoice;
   thinking?: { type: 'enabled' | 'disabled' };
-  reasoning_effort?: 'high' | 'max';
+  reasoning_effort?: 'low' | 'high' | 'max';
   response_format?: { type: 'json_object' };
 }
 
@@ -178,7 +178,7 @@ export interface DeepSeekChatInput {
     | 'required'
     | { type: 'function'; function: { name: string } };
   thinking?: { type: 'enabled' | 'disabled' };
-  reasoning_effort?: 'high' | 'max';
+  reasoning_effort?: 'low' | 'high' | 'max';
   json_mode?: boolean;
   response_schema?: Record<string, unknown>;
 }

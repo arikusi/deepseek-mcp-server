@@ -41,7 +41,7 @@ export const ThinkingSchema = z
   .object({ type: z.enum(['enabled', 'disabled']) })
   .optional();
 
-export const ReasoningEffortSchema = z.enum(['high', 'max']).optional();
+export const ReasoningEffortSchema = z.enum(['low', 'high', 'max']).optional();
 
 /** A caller-supplied JSON Schema for validating the model's JSON output.
  *  Kept permissive (any object) — Ajv compiles/validates it at request time. */

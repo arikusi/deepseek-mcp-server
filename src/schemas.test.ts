@@ -8,6 +8,7 @@ import {
   ChatInputWithToolsSchema,
   FunctionDefinitionSchema,
   ThinkingSchema,
+  ReasoningEffortSchema,
   ContentPartSchema,
   ContentSchema,
   TextContentPartSchema,
@@ -169,6 +170,18 @@ describe('schemas', () => {
     it('should reject invalid type', () => {
       const result = ThinkingSchema.safeParse({ type: 'auto' });
       expect(result.success).toBe(false);
+    });
+  });
+
+  describe('ReasoningEffortSchema', () => {
+    it('should accept the levels the API advertises', () => {
+      for (const level of ['low', 'high', 'max']) {
+        expect(ReasoningEffortSchema.safeParse(level).success).toBe(true);
+      }
+    });
+
+    it('should reject levels the API does not advertise', () => {
+      expect(ReasoningEffortSchema.safeParse('medium').success).toBe(false);
     });
   });
 
