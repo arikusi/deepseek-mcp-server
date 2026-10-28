@@ -120,7 +120,7 @@ export function registerChatTool(
           'Toggle chain-of-thought thinking mode. Use {type: "enabled"} to reason, {type: "disabled"} for a fast direct answer (the default here). When enabled, temperature/top_p are ignored.'
         ),
         reasoning_effort: ReasoningEffortSchema.describe(
-          'Reasoning effort while thinking mode is active: "high" (default) or "max". Only applies when thinking is enabled.'
+          'Reasoning effort while thinking mode is active: "low" (fewer reasoning tokens), "high" (default) or "max". Only applies when thinking is enabled.'
         ),
         json_mode: z
           .boolean()
