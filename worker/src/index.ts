@@ -10,7 +10,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { z } from 'zod';
 
-const VERSION = '2.5.0';
+const VERSION = '2.5.1';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 const DEEPSEEK_FIM_URL = 'https://api.deepseek.com/beta/completions';
 const FIM_MAX_TOKENS = 4096;
@@ -241,15 +241,17 @@ function createMcpServer(apiKey: string): McpServer {
               if (chunk.model) responseModel = chunk.model;
               if (chunk.usage) usage = chunk.usage;
 
-              const delta = chunk.choices?.[0]?.delta;
-              if (!delta) {
-                if (chunk.choices?.[0]?.finish_reason) finishReason = chunk.choices[0].finish_reason;
-                continue;
-              }
+              // finish_reason sits on the choice, not on the delta. The final
+              // chunk still carries a delta ({"content":""}), so it has to be
+              // read before the delta check, or it is never seen.
+              const choice = chunk.choices?.[0];
+              if (choice?.finish_reason) finishReason = choice.finish_reason;
+
+              const delta = choice?.delta;
+              if (!delta) continue;
 
               if (delta.content) content += delta.content;
               if (delta.reasoning_content) reasoningContent += delta.reasoning_content;
-              if (delta.finish_reason) finishReason = delta.finish_reason;
 
               // Accumulate tool calls
               if (delta.tool_calls) {
