@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.1] - 2026-11-25
+
+2.5.0 was merged and deployed to the hosted worker on 2026-10-28, but it was never tagged or published to npm. 2.5.1 is the first npm release that carries it, so anyone on npm moves straight from 2.4.0 to 2.5.1 and gets the 2.5.0 entry below as well.
+
+### Security
+- `hono` 4.13.18 (upstream, transitive through the MCP SDK). Fixes GHSA-4m76-xfj5-7975 (`mount()` path forwarding past scoped middleware), GHSA-h7mg-cq63-vhpq (RegExpRouter skipping wildcard middleware), GHSA-46wx-v44x-9hh2 (`csrf()` and `text/ping`), GHSA-4h7h-rv7c-7m2v (`validator('form')` and multipart) and GHSA-3gg2-335m-rxc6 (`css` helper escaping). Neither the npm server nor the worker imports hono or uses any of these helpers, so none of them was reachable here; they are patched all the same.
+- `@hono/node-server` 2.1.8 (upstream, transitive). Fixes GHSA-jpvv-r467-5p4w (backslash parsed as a path separator) and GHSA-qv5m-9pm6-hqp3 (unhandled `ECONNRESET` during a WebSocket upgrade). This server serves no static files and opens no WebSockets.
+
+### Fixed
+- **The hosted worker never reported `finish_reason`.** The worker streams from DeepSeek internally and reads `finish_reason` while accumulating chunks, but it looked for it on the delta, where it never is. The final chunk carries it on the choice next to a non-empty `delta`, so the value was skipped and every response came back with `finish_reason: ""`. Clients therefore could not tell a complete answer from one cut off at `max_tokens`, or notice that the model stopped to call a tool. Present since the worker switched to internal streaming. Checked against the live API for `stop`, `length` and `tool_calls`. The npm server was not affected.
+
+### Changed
+- `openai` 7.52. On the dev side: `vitest` and `@vitest/coverage-v8` 5.1, `@types/node` 26.6.6, and wrangler 4.165 for the worker.
+- `LAUNCHGUIDE.md` still described 2.0-era defaults (`deepseek-v4-flash`, `deepseek-chat` versus `deepseek-reasoner`) and left out `deepseek_fim` and `response_schema`. It now matches the README.
+
 ## [2.5.0] - 2026-10-28
 
 ### Security
@@ -461,8 +476,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - [GitHub repository](https://github.com/arikusi/deepseek-mcp-server)
 - [Issue tracker](https://github.com/arikusi/deepseek-mcp-server/issues)
 
-[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.5.0...HEAD
-[2.5.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.4.0...v2.5.0
+[Unreleased]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.5.1...HEAD
+[2.5.1]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.4.0...v2.5.1
+[2.5.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.4.0...512f8cb
 [2.4.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.3.0...v2.4.0
 [2.3.0]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.2.1...v2.3.0
 [2.2.1]: https://github.com/arikusi/deepseek-mcp-server/compare/v2.2.0...v2.2.1
